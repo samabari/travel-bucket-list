@@ -15,6 +15,54 @@ export interface DestinationPhotoMutationResult {
   cleanupWarning: boolean;
 }
 
+export type DestinationPhotoFailureStage =
+  | "authenticated user lookup"
+  | "destination ownership check"
+  | "storage upload"
+  | "private photo URL signing"
+  | "destinations.photo_url update"
+  | "old photo cleanup"
+  | "photo reference removal"
+  | "stored photo removal";
+
+export class DestinationPhotoOperationError extends Error {
+  constructor(
+    readonly stage: DestinationPhotoFailureStage,
+    message: string,
+    readonly supabaseCode: string | null = null,
+    readonly supabaseMessage: string | null = null,
+  ) {
+    super(message);
+    this.name = "DestinationPhotoOperationError";
+  }
+}
+
+function throwSupabasePhotoError(stage: DestinationPhotoFailureStage, error: unknown): never {
+  const record = error && typeof error === "object"
+    ? error as { code?: unknown; message?: unknown }
+    : {};
+  const code = typeof record.code === "string" ? record.code : null;
+  const message = typeof record.message === "string" ? record.message : "Unknown Supabase error";
+
+  console.error(`[destination-photo] ${stage} failed`, { code, message });
+  throw new DestinationPhotoOperationError(
+    stage,
+    getDestinationPhotoErrorMessage(error),
+    code,
+    message,
+  );
+}
+
+function logCleanupError(stage: "old photo cleanup" | "stored photo removal", error: unknown) {
+  const record = error && typeof error === "object"
+    ? error as { code?: unknown; message?: unknown }
+    : {};
+  console.error(`[destination-photo] ${stage} failed`, {
+    code: typeof record.code === "string" ? record.code : null,
+    message: typeof record.message === "string" ? record.message : "Unknown Supabase error",
+  });
+}
+
 export function validateDestinationPhoto(file: Pick<File, "type" | "size">): string | null {
   const type = file.type.toLowerCase();
   if (!DESTINATION_PHOTO_MIME_TYPES.includes(type as (typeof DESTINATION_PHOTO_MIME_TYPES)[number])) {
@@ -48,6 +96,8 @@ export function getDestinationPhotoErrorMessage(error: unknown): string {
   }
   if (
     code === "42501"
+    || status === 401
+    || status === 403
     || message.includes("row-level security")
     || message.includes("permission denied")
     || message.includes("not authorized")
@@ -83,7 +133,7 @@ export async function resolveDestinationPhotoUrl(photoValue: string | null): Pro
     .storage
     .from(DESTINATION_PHOTO_BUCKET)
     .createSignedUrl(photoValue, 60 * 60);
-  if (error) throw new Error(getDestinationPhotoErrorMessage(error));
+  if (error) throwSupabasePhotoError("private photo URL signing", error);
   return data.signedUrl;
 }
 
@@ -103,42 +153,70 @@ export async function uploadDestinationPhoto(
   const client = getClient();
   const { data: authData, error: authError } = await client.auth.getUser();
   if (authError || !authData.user?.id) {
+    if (authError) throwSupabasePhotoError("authenticated user lookup", authError);
     throw new Error("Sign in again before uploading a destination photo.");
   }
 
-  const path = getStoragePath(authData.user.id, destinationId, file);
+  const userId = authData.user.id;
+  const { data: ownedDestination, error: ownershipError } = await client
+    .from("destinations")
+    .select("id")
+    .eq("id", destinationId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (ownershipError) throwSupabasePhotoError("destination ownership check", ownershipError);
+  if (!ownedDestination) {
+    throw new DestinationPhotoOperationError(
+      "destination ownership check",
+      "This destination isn’t available in your account. Refresh your list and try again.",
+    );
+  }
+
+  const path = getStoragePath(userId, destinationId, file);
   const bucket = client.storage.from(DESTINATION_PHOTO_BUCKET);
   const { error: uploadError } = await bucket.upload(path, file, {
     cacheControl: "3600",
     contentType: file.type,
     upsert: false,
   });
-  if (uploadError) throw new Error(getDestinationPhotoErrorMessage(uploadError));
+  if (uploadError) throwSupabasePhotoError("storage upload", uploadError);
 
   let displayUrl: string;
   try {
     displayUrl = (await resolveDestinationPhotoUrl(path)) ?? "";
     if (!displayUrl) throw new Error("A secure photo preview could not be created.");
   } catch (cause) {
-    await bucket.remove([path]);
+    const { error } = await bucket.remove([path]);
+    if (error) logCleanupError("stored photo removal", error);
     throw cause;
   }
 
-  const { error: databaseError } = await client
+  const { data: updatedDestination, error: databaseError } = await client
     .from("destinations")
     .update({ photo_url: path })
     .eq("id", destinationId)
+    .eq("user_id", userId)
     .select("id")
-    .single();
+    .maybeSingle();
   if (databaseError) {
-    await bucket.remove([path]);
-    throw new Error(getDestinationPhotoErrorMessage(databaseError));
+    const { error } = await bucket.remove([path]);
+    if (error) logCleanupError("stored photo removal", error);
+    throwSupabasePhotoError("destinations.photo_url update", databaseError);
+  }
+  if (!updatedDestination) {
+    const { error } = await bucket.remove([path]);
+    if (error) logCleanupError("stored photo removal", error);
+    throw new DestinationPhotoOperationError(
+      "destinations.photo_url update",
+      "This destination isn’t available in your account. Refresh your list and try again.",
+    );
   }
 
   let cleanupWarning = false;
   if (isStoredDestinationPhoto(previousPhotoValue) && previousPhotoValue !== path) {
     const { error } = await bucket.remove([previousPhotoValue]);
     cleanupWarning = !!error;
+    if (error) logCleanupError("old photo cleanup", error);
   }
 
   return { displayUrl, cleanupWarning };
@@ -149,13 +227,19 @@ export async function removeDestinationPhoto(
   currentPhotoValue: string | null,
 ): Promise<DestinationPhotoMutationResult> {
   const client = getClient();
-  const { error: databaseError } = await client
+  const { data: updatedDestination, error: databaseError } = await client
     .from("destinations")
     .update({ photo_url: null })
     .eq("id", destinationId)
     .select("id")
-    .single();
-  if (databaseError) throw new Error(getDestinationPhotoErrorMessage(databaseError));
+    .maybeSingle();
+  if (databaseError) throwSupabasePhotoError("photo reference removal", databaseError);
+  if (!updatedDestination) {
+    throw new DestinationPhotoOperationError(
+      "photo reference removal",
+      "This destination isn’t available in your account. Refresh your list and try again.",
+    );
+  }
 
   let cleanupWarning = false;
   if (isStoredDestinationPhoto(currentPhotoValue)) {
@@ -163,6 +247,7 @@ export async function removeDestinationPhoto(
       .from(DESTINATION_PHOTO_BUCKET)
       .remove([currentPhotoValue]);
     cleanupWarning = !!error;
+    if (error) logCleanupError("stored photo removal", error);
   }
 
   return { displayUrl: undefined, cleanupWarning };
