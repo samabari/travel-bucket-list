@@ -66,7 +66,10 @@ describe("TravelDashboardPage", () => {
     tracker.reload.mockReset();
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("shows accurate statistics and a labeled visited-versus-wishlist chart", () => {
     renderPage();
@@ -90,6 +93,29 @@ describe("TravelDashboardPage", () => {
 
     expect(screen.getByRole("heading", { name: "Your first place is waiting." })).toBeTruthy();
     expect(screen.getByRole("link", { name: /add your first destination/i }).getAttribute("href")).toBe("/destinations");
+  });
+
+  it("picks only wishlist places and avoids repeating the last pick", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(Math, "random").mockReturnValue(0.999);
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Pick My Next Trip!" }));
+    expect(screen.getByText("Destination 5")).toBeTruthy();
+    expect(screen.getByText("IT")).toBeTruthy();
+    expect(screen.queryByText("Destination 3")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Pick Again" }));
+    expect(screen.getByText("Destination 4")).toBeTruthy();
+    expect(screen.queryByText("Destination 5")).toBeNull();
+  });
+
+  it("offers a destination-list link when the wishlist is empty", () => {
+    tracker.destinations = [makeDestination("visited", "JP", "visited")];
+    renderPage();
+
+    expect(screen.getByText("No wishes on the map just yet.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Add a wish" }).getAttribute("href")).toBe("/destinations");
   });
 
   it("shows loading and retryable error states", async () => {
