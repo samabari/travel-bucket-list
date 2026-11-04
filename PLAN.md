@@ -96,3 +96,20 @@ I will build the application through small GitHub Issues, feature branches, and 
 The plan will be merged before any application feature development begins. I will test each feature before merging and deploy the updated app after each merge.
 
 After development, I will add a Plan vs. Reality table without rewriting this original plan.
+## Plan vs. Reality
+
+| Feature | Original Plan | Reality |
+|---|---|---|
+| User authentication | Users can sign up, log in, and manage their own data | Implemented with Supabase authentication and user-specific data access. |
+| Destination management | Add, edit, view, and delete destinations | Implemented destination management with persistent data and input validation. |
+| Favorites | Star destinations and view favorites | Implemented a favorites feature using a stars table. |
+| Search and filtering | Find and organize destinations | Implemented search, filtering, and sorting. |
+| Dashboard | Display travel statistics and a chart | Built dashboard statistics and a chart; tested dashboard calculations. |
+| Random destination picker | Suggest a destination at random | Implemented the random destination picker. |
+| Travel notes | Save notes about destinations | Implemented editable, persistent travel notes. |
+| Photo uploads | Upload destination photos | Implemented the upload interface, but actual uploads encountered a Supabase Storage permissions error. |
+| Testing | Test data isolation and dashboard calculations | Completed dashboard red/green tests; ran data-isolation model tests, but their GitHub evidence was not fully merged. |
+
+### Key Takeaways
+
+The original plan gave me a roadmap, but implementation required adjustments. I learned that a feature passing automated tests does not necessarily mean it works in the deployed app, especially when external services such as Supabase Storage have separate permissions. I prioritized a working, published application and documented remaining limitations rather than treating every planned feature as fully complete.
