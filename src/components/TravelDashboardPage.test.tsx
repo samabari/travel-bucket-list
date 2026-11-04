@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import type { Destination } from "../lib/destinations";
 import TravelDashboardPage from "./TravelDashboardPage";
 
@@ -48,8 +48,14 @@ function renderPage() {
   return render(
     <MemoryRouter initialEntries={["/dashboard"]}>
       <TravelDashboardPage />
+      <NavigationProbe />
     </MemoryRouter>,
   );
+}
+
+function NavigationProbe() {
+  const { pathname, state } = useLocation();
+  return <output data-testid="navigation-state">{JSON.stringify({ pathname, state })}</output>;
 }
 
 describe("TravelDashboardPage", () => {
@@ -85,14 +91,40 @@ describe("TravelDashboardPage", () => {
         name: "Comparison of your saved destinations: 3 visited and 2 on your wishlist.",
       }),
     ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /Welcome to your Travel Bucket List/ })).toBeNull();
   });
 
-  it("shows an inviting empty state when there are no destinations", () => {
+  it("shows the welcome message only for a new user and opens the add flow", async () => {
+    const user = userEvent.setup();
     tracker.destinations = [];
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "Your first place is waiting." })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /add your first destination/i }).getAttribute("href")).toBe("/destinations");
+    expect(screen.getByRole("heading", { name: "Welcome to your Travel Bucket List! 🌎" })).toBeTruthy();
+    expect(screen.getByText("Start by adding your first destination, then track your adventures, save favorites, and explore your travel stats.")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Add Your First Destination" }));
+    expect(JSON.parse(screen.getByTestId("navigation-state").textContent ?? "{}")).toEqual({
+      pathname: "/destinations",
+      state: { openCreateDestination: true },
+    });
+  });
+
+  it("hides the welcome message after a destination is added", () => {
+    tracker.destinations = [];
+    const { rerender } = renderPage();
+
+    expect(screen.getByRole("heading", { name: /Welcome to your Travel Bucket List/ })).toBeTruthy();
+
+    tracker.destinations = [makeDestination("1", "JP", "visited")];
+    rerender(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <TravelDashboardPage />
+        <NavigationProbe />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("heading", { name: /Welcome to your Travel Bucket List/ })).toBeNull();
+    expect(screen.getByRole("region", { name: "Travel statistics" })).toBeTruthy();
   });
 
   it("picks only wishlist places and avoids repeating the last pick", async () => {

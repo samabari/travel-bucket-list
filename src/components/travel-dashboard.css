@@ -82,6 +82,7 @@
   transition: background .18s ease, transform .18s ease;
 }
 .dashboard-add-link:hover { background: #466b77; transform: translateY(-1px); }
+.dashboard-add-button { font-family: "DM Sans", sans-serif; cursor: pointer; }
 .dashboard-rule { display: flex; align-items: center; gap: 14px; margin: 0 0 32px; color: #84918d; font: italic 13px "Playfair Display", Georgia, serif; }
 .dashboard-rule::before, .dashboard-rule::after { content: ""; height: 1px; flex: 1; background: var(--dash-line); }
 .dashboard-rule-mark { color: var(--dash-blue); font-style: normal; font-size: 16px; }
