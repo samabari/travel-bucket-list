@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   AlertCircle,
   ArrowRight,
+  BookOpen,
   Compass,
   Image as ImageIcon,
   LockKeyhole,
@@ -76,6 +77,7 @@ function DestinationCard({
   starPending,
   starsUnavailable,
   onEdit,
+  onViewNotes,
   onDelete,
   onToggleStar,
 }: {
@@ -84,6 +86,7 @@ function DestinationCard({
   starPending: boolean;
   starsUnavailable: boolean;
   onEdit: (destination: Destination) => void;
+  onViewNotes: (destination: Destination) => void;
   onDelete: (destination: Destination) => void;
   onToggleStar: (destinationId: string) => void;
 }) {
@@ -109,6 +112,9 @@ function DestinationCard({
           </div>
         )}
         <div className="destination-card-actions">
+          <button className="destination-icon-button destination-notes-button" type="button" onClick={() => onViewNotes(destination)} aria-label={`Travel notes for ${destination.name}`} title="View or edit travel notes">
+            <BookOpen size={14} /><span>Notes</span>
+          </button>
           <button
             className={`destination-icon-button destination-star-button${starred ? " is-starred" : ""}`}
             type="button"
@@ -130,6 +136,113 @@ function DestinationCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function TravelNotesDialog({
+  destination,
+  busy,
+  onClose,
+  onSave,
+}: {
+  destination: Destination;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (destinationId: string, notes: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(destination.notes ?? "");
+  const [saveError, setSaveError] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editing) textareaRef.current?.focus();
+  }, [editing]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaveError("");
+    try {
+      await onSave(destination.id, draft);
+    } catch (cause) {
+      setSaveError(asErrorMessage(cause, "We couldn’t save your notes just now. Please try again."));
+    }
+  }
+
+  function beginEditing() {
+    setDraft(destination.notes ?? "");
+    setSaveError("");
+    setEditing(true);
+  }
+
+  return (
+    <div className="destination-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+      <section className="destination-dialog travel-notes-dialog" role="dialog" aria-modal="true" aria-labelledby="travel-notes-title">
+        <div className="destination-dialog-head">
+          <div>
+            <span className="destination-dialog-kicker">A page in your journal</span>
+            <h2 id="travel-notes-title">{destination.name}</h2>
+            <p className="destination-dialog-intro">{destination.countryName}</p>
+          </div>
+          <button className="destination-close" type="button" onClick={onClose} aria-label="Close travel notes" disabled={busy}><X size={18} /></button>
+        </div>
+
+        <section className="travel-notes-section" aria-labelledby="travel-notes-heading">
+          <div className="travel-notes-heading">
+            <BookOpen size={18} aria-hidden="true" />
+            <div>
+              <span>YOUR PERSONAL NOTES</span>
+              <h3 id="travel-notes-heading">Travel Notes</h3>
+            </div>
+          </div>
+
+          {editing ? (
+            <form className="travel-notes-form" onSubmit={(event) => void submit(event)}>
+              <label htmlFor="travel-notes-editor">Write your memories or ideas</label>
+              <textarea
+                ref={textareaRef}
+                id="travel-notes-editor"
+                value={draft}
+                onChange={(event) => { setDraft(event.target.value); setSaveError(""); }}
+                rows={10}
+                placeholder="The little details you want to remember, or the things you hope to do next time…"
+                disabled={busy}
+              />
+              {saveError && <p className="travel-notes-error" role="alert">{saveError}</p>}
+              <div className="destination-form-actions">
+                <button
+                  className="destination-cancel-button"
+                  type="button"
+                  onClick={() => { setDraft(destination.notes ?? ""); setSaveError(""); setEditing(false); }}
+                  disabled={busy}
+                >
+                  Cancel
+                </button>
+                <button className="destination-save-button" type="submit" disabled={busy}>
+                  {busy ? "Saving notes…" : "Save Notes"}
+                  {!busy && <ArrowRight size={15} />}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="travel-notes-view">
+              {destination.notes?.trim() ? (
+                <div className="travel-notes-content">{destination.notes}</div>
+              ) : (
+                <div className="travel-notes-empty" role="status">
+                  <h4>No notes yet.</h4>
+                  <p>Keep a memory from this place or jot down what you’d love to do there.</p>
+                </div>
+              )}
+              <button className="travel-notes-edit-button" type="button" onClick={beginEditing}>
+                {destination.notes?.trim() ? "Edit Notes" : "Write Notes"}
+                <Pencil size={14} />
+              </button>
+            </div>
+          )}
+        </section>
+      </section>
+    </div>
   );
 }
 
@@ -323,6 +436,7 @@ export default function DestinationTrackerPage() {
     reload,
     create,
     update,
+    saveNotes,
     remove,
     starredDestinationIds,
     starsLoading,
@@ -334,8 +448,10 @@ export default function DestinationTrackerPage() {
   const { pathname } = useLocation();
   const starredOnly = pathname === "/starred";
   const [formTarget, setFormTarget] = useState<Destination | null | undefined>(undefined);
+  const [notesTarget, setNotesTarget] = useState<Destination | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Destination | null>(null);
   const [mutationBusy, setMutationBusy] = useState(false);
+  const [notesBusy, setNotesBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const [filters, setFilters] = useState(defaultDestinationFilters);
   const errorFocusRef = useRef<HTMLDivElement>(null);
@@ -345,16 +461,17 @@ export default function DestinationTrackerPage() {
   }, [actionError]);
 
   useEffect(() => {
-    if (formTarget === undefined && !deleteTarget) return;
+    if (formTarget === undefined && !notesTarget && !deleteTarget) return;
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape" && !mutationBusy) {
         setFormTarget(undefined);
+        if (!notesBusy) setNotesTarget(null);
         setDeleteTarget(null);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [formTarget, deleteTarget, mutationBusy]);
+  }, [formTarget, notesTarget, deleteTarget, mutationBusy, notesBusy]);
 
   function openCreate() {
     setActionError("");
@@ -391,6 +508,16 @@ export default function DestinationTrackerPage() {
       setActionError(asErrorMessage(cause, "We couldn’t save that place just now. Please try again."));
     } finally {
       setMutationBusy(false);
+    }
+  }
+
+  async function submitTravelNotes(destinationId: string, notes: string) {
+    setNotesBusy(true);
+    try {
+      await saveNotes(destinationId, notes);
+      setNotesTarget(null);
+    } finally {
+      setNotesBusy(false);
     }
   }
 
@@ -436,6 +563,7 @@ export default function DestinationTrackerPage() {
                 starPending={pendingStarIds.has(destination.id)}
                 starsUnavailable={starsLoading || !!starsError}
                 onEdit={openEdit}
+                onViewNotes={setNotesTarget}
                 onDelete={setDeleteTarget}
                 onToggleStar={(id) => { void toggleStar(id); }}
               />
@@ -619,6 +747,15 @@ export default function DestinationTrackerPage() {
           mutationError={actionError}
           onClose={() => { if (!mutationBusy) { setFormTarget(undefined); setActionError(""); } }}
           onSubmit={submitDestination}
+        />
+      )}
+
+      {notesTarget && (
+        <TravelNotesDialog
+          destination={notesTarget}
+          busy={notesBusy}
+          onClose={() => { if (!notesBusy) setNotesTarget(null); }}
+          onSave={submitTravelNotes}
         />
       )}
 

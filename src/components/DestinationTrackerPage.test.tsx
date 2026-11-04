@@ -31,6 +31,7 @@ const tracker = vi.hoisted(() => ({
   reloadStars: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  saveNotes: vi.fn(),
   remove: vi.fn(),
   toggleStar: vi.fn(),
 }));
@@ -83,6 +84,7 @@ describe("DestinationTrackerPage", () => {
     tracker.starsLoading = false;
     tracker.starsError = "";
     tracker.pendingStarIds = new Set();
+    tracker.saveNotes.mockResolvedValue(undefined);
     vi.clearAllMocks();
   });
 
@@ -143,6 +145,69 @@ describe("DestinationTrackerPage", () => {
       notes: null,
       photoUrl: null,
     }));
+  });
+
+  it("saves new travel notes without submitting the destination form", async () => {
+    const user = userEvent.setup();
+    tracker.destinations = [makeDestination("destination-1", "Kyoto", "country-jp", "Japan", "visited", "2025-03-01T12:00:00Z")];
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Travel notes for Kyoto" }));
+    expect(screen.getByRole("heading", { name: "No notes yet." })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Write Notes" }));
+    await user.type(screen.getByLabelText("Write your memories or ideas"), "Morning walk through Gion.");
+    await user.click(screen.getByRole("button", { name: "Save Notes" }));
+
+    await waitFor(() => expect(tracker.saveNotes).toHaveBeenCalledWith("destination-1", "Morning walk through Gion."));
+    expect(tracker.update).not.toHaveBeenCalled();
+  });
+
+  it("loads existing notes for editing and saves the revised text", async () => {
+    const user = userEvent.setup();
+    const destination = makeDestination("destination-1", "Kyoto", "country-jp", "Japan", "visited", "2025-03-01T12:00:00Z");
+    destination.notes = "Quiet morning streets.";
+    tracker.destinations = [destination];
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Travel notes for Kyoto" }));
+    expect(within(screen.getByRole("dialog")).getByText("Quiet morning streets.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Edit Notes" }));
+    const notes = screen.getByLabelText("Write your memories or ideas") as HTMLTextAreaElement;
+    await user.clear(notes);
+    await user.type(notes, "Tea near the river.");
+    await user.click(screen.getByRole("button", { name: "Save Notes" }));
+
+    await waitFor(() => expect(tracker.saveNotes).toHaveBeenCalledWith("destination-1", "Tea near the river."));
+    expect(tracker.update).not.toHaveBeenCalled();
+  });
+
+  it("preserves paragraphs and line breaks while editing notes", async () => {
+    const user = userEvent.setup();
+    tracker.destinations = [makeDestination("destination-1", "Kyoto", "country-jp", "Japan", "wishlist", "2025-03-01T12:00:00Z")];
+    const multiline = "Visit the quiet gardens.\n\nTry the tea house near the river.";
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Travel notes for Kyoto" }));
+    await user.click(screen.getByRole("button", { name: "Write Notes" }));
+    const notes = screen.getByLabelText("Write your memories or ideas") as HTMLTextAreaElement;
+    await user.type(notes, multiline);
+
+    expect(notes.value).toBe(multiline);
+    await user.click(screen.getByRole("button", { name: "Save Notes" }));
+    await waitFor(() => expect(tracker.saveNotes).toHaveBeenCalledWith("destination-1", multiline));
+  });
+
+  it("allows empty notes and shows a friendly empty state", async () => {
+    const user = userEvent.setup();
+    tracker.destinations = [makeDestination("destination-1", "Kyoto", "country-jp", "Japan", "wishlist", "2025-03-01T12:00:00Z")];
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Travel notes for Kyoto" }));
+    expect(screen.getByRole("heading", { name: "No notes yet." })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Write Notes" }));
+    await user.click(screen.getByRole("button", { name: "Save Notes" }));
+
+    await waitFor(() => expect(tracker.saveNotes).toHaveBeenCalledWith("destination-1", ""));
   });
 
   it("requires confirmation before deleting a destination", async () => {
