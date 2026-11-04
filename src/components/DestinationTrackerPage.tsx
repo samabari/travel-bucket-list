@@ -20,6 +20,11 @@ import { useDestinationTracker } from "../hooks/useDestinationTracker";
 import type { Country, Destination, DestinationInput, DestinationStatus } from "../lib/destinations";
 import { isStoredDestinationPhoto, type DestinationPhotoMutationResult } from "../lib/destination-photos";
 import { filterAndSortDestinations, type DestinationSort, type DestinationStatusFilter } from "../lib/destination-filters";
+import {
+  validateDestinationDraft,
+  type DestinationValidationErrors,
+  type DestinationValidationField,
+} from "../lib/destination-validation";
 import DestinationPhotoPanel from "./DestinationPhotoPanel";
 import "./destination-tracker.css";
 
@@ -309,9 +314,13 @@ function DestinationFormDialog({
   onSubmit: (input: DestinationInput) => Promise<void>;
 }) {
   const [form, setForm] = useState(initial);
-  const [validationError, setValidationError] = useState("");
+  const [validationErrors, setValidationErrors] = useState<DestinationValidationErrors>({});
   const nameRef = useRef<HTMLInputElement>(null);
-  const error = validationError || mutationError;
+  const countryRef = useRef<HTMLSelectElement>(null);
+  const newCountryRef = useRef<HTMLInputElement>(null);
+  const visitDateRef = useRef<HTMLInputElement>(null);
+  const ratingRef = useRef<HTMLInputElement>(null);
+  const photoUrlRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -319,40 +328,51 @@ function DestinationFormDialog({
 
   function setField<K extends keyof DestinationForm>(key: K, value: DestinationForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
-    setValidationError("");
+    setValidationErrors((current) => {
+      const next = { ...current };
+      const validationKey: DestinationValidationField | undefined =
+        key === "name" || key === "countryChoice" || key === "newCountry" || key === "visitDate" || key === "rating" || key === "photoUrl"
+          ? key
+          : undefined;
+      if (validationKey) delete next[validationKey];
+      if (key === "countryChoice") delete next.newCountry;
+      return next;
+    });
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setValidationError("");
+    const errors = validateDestinationDraft({
+      name: form.name,
+      countryChoice: form.countryChoice,
+      newCountry: form.newCountry,
+      visitDate: form.visitDate,
+      rating: form.rating,
+      photoUrl: form.photoUrl,
+      photoUrlIsStored: isStoredDestinationPhoto(form.photoUrl),
+    }, countries.map((country) => country.id));
+    setValidationErrors(errors);
+
+    const fieldOrder: DestinationValidationField[] = ["name", "countryChoice", "newCountry", "visitDate", "rating", "photoUrl"];
+    const firstInvalidField = fieldOrder.find((field) => errors[field]);
+    if (firstInvalidField) {
+      const fieldRefs = {
+        name: nameRef,
+        countryChoice: countryRef,
+        newCountry: newCountryRef,
+        visitDate: visitDateRef,
+        rating: ratingRef,
+        photoUrl: photoUrlRef,
+      };
+      fieldRefs[firstInvalidField].current?.focus();
+      return;
+    }
+
     const name = form.name.trim();
     const usesNewCountry = form.countryChoice === "new";
     const countryName = form.newCountry.trim();
-    if (!name) {
-      setValidationError("Give this place a name before saving.");
-      nameRef.current?.focus();
-      return;
-    }
-    if ((!usesNewCountry && !form.countryChoice) || (usesNewCountry && !countryName)) {
-      setValidationError("Choose a country, or add a new one.");
-      document.getElementById(usesNewCountry ? "destination-new-country" : "destination-country")?.focus();
-      return;
-    }
     const photoUrl = form.photoUrl.trim();
-    if (photoUrl && !isStoredDestinationPhoto(photoUrl)) {
-      const validUrl = safePhotoUrl(photoUrl);
-      if (!validUrl) {
-        setValidationError("Enter a complete photo link beginning with http:// or https://.");
-        document.getElementById("destination-photo")?.focus();
-        return;
-      }
-    }
     const rating = form.rating.trim() ? Number(form.rating) : null;
-    if (rating !== null && !Number.isFinite(rating)) {
-      setValidationError("Enter a valid number for your rating, or leave it blank.");
-      document.getElementById("destination-rating")?.focus();
-      return;
-    }
     await onSubmit({
       name,
       country: usesNewCountry
@@ -382,26 +402,34 @@ function DestinationFormDialog({
         <form className="destination-form" onSubmit={submit} noValidate>
           <div className="destination-field is-full">
             <label htmlFor="destination-name">Place name <span aria-hidden="true">*</span></label>
-            <input ref={nameRef} id="destination-name" name="name" required maxLength={120} placeholder="A city, coastline, little village…" value={form.name} onChange={(event) => setField("name", event.target.value)} />
+            <input ref={nameRef} id="destination-name" name="name" required maxLength={120} placeholder="A city, coastline, little village…" value={form.name} onChange={(event) => setField("name", event.target.value)} aria-invalid={Boolean(validationErrors.name)} aria-describedby={validationErrors.name ? "destination-name-error" : undefined} />
+            {validationErrors.name && <p className="destination-field-error" id="destination-name-error" role="alert">{validationErrors.name}</p>}
           </div>
           <div className="destination-field is-full">
             <label htmlFor="destination-country">Country <span aria-hidden="true">*</span></label>
-            <select id="destination-country" name="country" value={form.countryChoice} required onChange={(event) => setField("countryChoice", event.target.value)}>
+            <select ref={countryRef} id="destination-country" name="country" value={form.countryChoice} required onChange={(event) => setField("countryChoice", event.target.value)} aria-invalid={Boolean(validationErrors.countryChoice)} aria-describedby={validationErrors.countryChoice ? "destination-country-error" : undefined}>
               <option value="">Choose a country</option>
               {countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}
               <option value="new">Add a new country…</option>
             </select>
+            {validationErrors.countryChoice && <p className="destination-field-error" id="destination-country-error" role="alert">{validationErrors.countryChoice}</p>}
             {form.countryChoice === "new" && (
-              <input
-                id="destination-new-country"
-                aria-label="New country name"
-                name="newCountry"
-                required
-                maxLength={100}
-                placeholder="Country name"
-                value={form.newCountry}
-                onChange={(event) => setField("newCountry", event.target.value)}
-              />
+              <>
+                <input
+                  ref={newCountryRef}
+                  id="destination-new-country"
+                  aria-label="New country name"
+                  name="newCountry"
+                  required
+                  maxLength={100}
+                  placeholder="Country name"
+                  value={form.newCountry}
+                  onChange={(event) => setField("newCountry", event.target.value)}
+                  aria-invalid={Boolean(validationErrors.newCountry)}
+                  aria-describedby={validationErrors.newCountry ? "destination-new-country-error" : undefined}
+                />
+                {validationErrors.newCountry && <p className="destination-field-error" id="destination-new-country-error" role="alert">{validationErrors.newCountry}</p>}
+              </>
             )}
           </div>
           <fieldset className="destination-field destination-fieldset is-full">
@@ -419,11 +447,13 @@ function DestinationFormDialog({
           </fieldset>
           <div className="destination-field">
             <label htmlFor="destination-date">When did you go?</label>
-            <input id="destination-date" name="visitDate" type="date" value={form.visitDate} onChange={(event) => setField("visitDate", event.target.value)} />
+            <input ref={visitDateRef} id="destination-date" name="visitDate" type="date" value={form.visitDate} onChange={(event) => setField("visitDate", event.target.value)} aria-invalid={Boolean(validationErrors.visitDate)} aria-describedby={validationErrors.visitDate ? "destination-date-error" : undefined} />
+            {validationErrors.visitDate && <p className="destination-field-error" id="destination-date-error" role="alert">{validationErrors.visitDate}</p>}
           </div>
           <div className="destination-field">
             <label htmlFor="destination-rating">Personal rating</label>
-            <input id="destination-rating" name="rating" type="number" step="any" inputMode="decimal" placeholder="Optional" value={form.rating} onChange={(event) => setField("rating", event.target.value)} />
+            <input ref={ratingRef} id="destination-rating" name="rating" type="number" step="any" inputMode="decimal" placeholder="Optional" value={form.rating} onChange={(event) => setField("rating", event.target.value)} aria-invalid={Boolean(validationErrors.rating)} aria-describedby={validationErrors.rating ? "destination-rating-error" : undefined} />
+            {validationErrors.rating && <p className="destination-field-error" id="destination-rating-error" role="alert">{validationErrors.rating}</p>}
           </div>
           <div className="destination-field is-full">
             <label htmlFor="destination-notes">A few words to remember it by</label>
@@ -438,12 +468,13 @@ function DestinationFormDialog({
             ) : (
               <>
                 <label htmlFor="destination-photo">Photo link</label>
-                <input id="destination-photo" name="photoUrl" type="url" inputMode="url" placeholder="https://…" value={form.photoUrl} onChange={(event) => setField("photoUrl", event.target.value)} aria-describedby="destination-photo-hint" />
+                <input ref={photoUrlRef} id="destination-photo" name="photoUrl" type="url" inputMode="url" placeholder="https://…" value={form.photoUrl} onChange={(event) => setField("photoUrl", event.target.value)} aria-invalid={Boolean(validationErrors.photoUrl)} aria-describedby={`destination-photo-hint${validationErrors.photoUrl ? " destination-photo-error" : ""}`} />
                 <span className="destination-photo-hint" id="destination-photo-hint">A link to an image is optional. Use a full http or https address.</span>
+                {validationErrors.photoUrl && <p className="destination-field-error" id="destination-photo-error" role="alert">{validationErrors.photoUrl}</p>}
               </>
             )}
           </div>
-          {error && <p className="destination-form-error" role="alert">{error}</p>}
+          {mutationError && <p className="destination-form-error" role="alert">{mutationError}</p>}
           <div className="destination-form-actions">
             <button className="destination-cancel-button" type="button" onClick={onClose} disabled={busy}>Keep looking</button>
             <button className="destination-save-button" type="submit" disabled={busy}>

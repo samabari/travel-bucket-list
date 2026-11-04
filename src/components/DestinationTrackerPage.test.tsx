@@ -118,6 +118,27 @@ describe("DestinationTrackerPage", () => {
     }));
   });
 
+  it("shows field errors and preserves blank create values without saving", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: /add a place/i }));
+    const nameInput = screen.getByLabelText(/place name/i) as HTMLInputElement;
+    await user.type(nameInput, "   ");
+    await user.selectOptions(within(screen.getByRole("dialog")).getByLabelText(/^Country/), "new");
+    const newCountryInput = screen.getByLabelText("New country name") as HTMLInputElement;
+    await user.type(newCountryInput, "   ");
+    await user.click(screen.getByRole("button", { name: /add to my places/i }));
+
+    expect(tracker.create).not.toHaveBeenCalled();
+    expect(screen.getByText("Add a name for this destination.")).toBeTruthy();
+    expect(screen.getByText("Enter a country name.")).toBeTruthy();
+    expect(nameInput.value).toBe("   ");
+    expect(newCountryInput.value).toBe("   ");
+    expect(nameInput.getAttribute("aria-invalid")).toBe("true");
+    expect(newCountryInput.getAttribute("aria-invalid")).toBe("true");
+  });
+
   it("edits an existing destination", async () => {
     const user = userEvent.setup();
     tracker.destinations = [{
@@ -149,6 +170,37 @@ describe("DestinationTrackerPage", () => {
       notes: null,
       photoUrl: null,
     }));
+  });
+
+  it("blocks invalid edits and keeps the entered values in the form", async () => {
+    const user = userEvent.setup();
+    tracker.destinations = [{
+      id: "destination-1",
+      countryId: "country-jp",
+      countryName: "Japan",
+      name: "Kyoto",
+      status: "wishlist",
+      visitDate: null,
+      rating: 4,
+      notes: null,
+      photoUrl: null,
+      createdAt: "2025-03-01T12:00:00Z",
+    }];
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Edit Kyoto" }));
+    const nameInput = screen.getByLabelText(/place name/i) as HTMLInputElement;
+    const countryInput = within(screen.getByRole("dialog")).getByLabelText(/^Country/) as HTMLSelectElement;
+    await user.clear(nameInput);
+    await user.type(nameInput, "  ");
+    await user.selectOptions(countryInput, "");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(tracker.update).not.toHaveBeenCalled();
+    expect(screen.getByText("Add a name for this destination.")).toBeTruthy();
+    expect(screen.getByText("Choose a country from the list.")).toBeTruthy();
+    expect(nameInput.value).toBe("  ");
+    expect(countryInput.value).toBe("");
   });
 
   it("saves new travel notes without submitting the destination form", async () => {
