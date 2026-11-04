@@ -1,0 +1,1 @@
+- [Runtime probe side effects](runtime-probe-side-effects.md) — avoid unnecessary Python probes in Node repls; they may add `python-base` to `.replit`.
