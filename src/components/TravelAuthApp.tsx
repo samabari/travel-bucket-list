@@ -21,6 +21,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { getFriendlyAuthError, useAuth } from "../auth/AuthContext";
+import DestinationTrackerPage from "./DestinationTrackerPage";
 
 function Brand({ inverse = false }: { inverse?: boolean }) {
   return (
@@ -39,7 +40,7 @@ function Header() {
       <nav className="header-nav" aria-label="Main navigation">
         <span className="header-note">A little space for what’s next</span>
         {user ? (
-          <Link className="nav-pill" to="/welcome">Your space <ArrowRight size={15} /></Link>
+          <Link className="nav-pill" to="/destinations">My destinations <ArrowRight size={15} /></Link>
         ) : (
           <>
             <Link className="nav-login" to="/login">Log in</Link>
@@ -286,6 +287,9 @@ function WelcomePage() {
         <p>Your private travel journal is ready. A place to keep the moments that matter, and make a little room for the ones still ahead.</p>
         <div className="welcome-rule"><span /><MapPin size={15} /><span /></div>
         <div className="welcome-email"><span>SIGNED IN AS</span><strong>{profile?.email || user?.email}</strong></div>
+        <Link className="button button-primary welcome-destinations-link" to="/destinations">
+          Open my destinations <ArrowRight size={16} />
+        </Link>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="text-link logout-button" type="button" onClick={leave} disabled={busy}>{busy ? "Signing out…" : "Sign out"} <ArrowRight size={15} /></button>
       </section>
@@ -305,6 +309,7 @@ function RouteViews() {
       <Route path="/signup" element={user ? <Navigate to="/welcome" replace /> : <AuthPage mode="signup" />} />
       <Route path="/login" element={user ? <Navigate to="/welcome" replace /> : <AuthPage mode="login" />} />
       <Route path="/welcome" element={user ? <WelcomePage /> : <Navigate to="/login" replace state={{ from: "/welcome" }} />} />
+      <Route path="/destinations" element={user ? <DestinationTrackerPage /> : <Navigate to="/login" replace state={{ from: "/destinations" }} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

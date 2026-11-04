@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5000",
     "build": "tsc -b && vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 5000"
+    "preview": "vite preview --host 0.0.0.0 --port 5000",
+    "test": "vitest run"
   },
   "repository": {
     "type": "git",
@@ -21,14 +22,18 @@
   "homepage": "https://github.com/samabari/travel-bucket-list#readme",
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",
+    "jsdom": "^30.1.3",
     "lucide-react": "^1.67.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5",
     "typescript": "^7.0.2",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
   }
 }

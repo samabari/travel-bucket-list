@@ -152,6 +152,7 @@ h1, h2, p { margin-top: 0; }
 .welcome-email { display: flex; flex-direction: column; gap: 7px; margin-bottom: 23px; }
 .welcome-email span { color: #9aa29c; font-size: 9px; letter-spacing: .16em; }
 .welcome-email strong { color: #526966; font-size: 13px; font-weight: 500; }
+.welcome-destinations-link { margin-bottom: 20px; }
 .logout-button { border: 0; background: none; cursor: pointer; }
 .welcome-page .landing-footer { flex: none; }
 .loading-screen { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: var(--paper); color: #8a9691; font-size: 12px; }
