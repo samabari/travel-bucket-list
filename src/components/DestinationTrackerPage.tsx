@@ -460,6 +460,7 @@ export default function DestinationTrackerPage() {
           <Link className="destination-home-link" to="/">Elsewhere</Link>
           <span className="destination-topline-title"><Compass size={14} /> A PERSONAL TRAVEL JOURNAL</span>
           <nav className="destination-page-nav" aria-label="Destination collections">
+            <Link to="/dashboard" aria-current={pathname === "/dashboard" ? "page" : undefined}>Overview</Link>
             <Link to="/destinations" aria-current={!starredOnly ? "page" : undefined}>My destinations</Link>
             <Link to="/starred" aria-current={starredOnly ? "page" : undefined}>Starred destinations</Link>
           </nav>

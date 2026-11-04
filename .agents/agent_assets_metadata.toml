@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "WhPqGWDLFuLTfrVHresQr"
+uri = "file://evidence/dashboard-red.png"
+type = "image"
+title = "Dashboard calculation RED evidence"
+description = "Screenshot of the deliberately failing calculation test showing 3 visited expected versus 2 received."
+logical_id = "2c5f80c5-f242-4bd5-8a31-ae5d6641a270"
+content_hash = "sha256:07ce41082fb8b591e2432f99d746ce507697b096a16eab37697b19b7164ea39f"
+size = 394661
+mtime_ms = 1793764766165
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:8870a5ab-026a-4fbd-814f-8ca81fcf973f/2c5f80c5-f242-4bd5-8a31-ae5d6641a270/927e2cb0-64ed-4717-9345-d3591a8f77cf"
+storage_version_token = "1793764856765375"
+content_type = "image/png"
+
+[[outputs]]
+id = "fTwubRxPGz1nqKSQzB1Jr"
+uri = "file://evidence/dashboard-green.png"
+type = "image"
+title = "Dashboard calculation GREEN evidence"
+description = "Screenshot of the corrected dashboard calculation test passing."
+logical_id = "7673fbd2-2886-4aae-bcd5-c66dfe065f69"
+content_hash = "sha256:a1eeb6b76001ec64be26ee30dac50b7b5c461ce06112d0861019ba060ba2b1bd"
+size = 129796
+mtime_ms = 1793764766451
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:8870a5ab-026a-4fbd-814f-8ca81fcf973f/7673fbd2-2886-4aae-bcd5-c66dfe065f69/54c6bc54-7530-4ba1-a024-b0efc8a81526"
+storage_version_token = "1793764857307141"
+content_type = "image/png"
