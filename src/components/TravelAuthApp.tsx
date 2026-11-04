@@ -310,6 +310,7 @@ function RouteViews() {
       <Route path="/login" element={user ? <Navigate to="/welcome" replace /> : <AuthPage mode="login" />} />
       <Route path="/welcome" element={user ? <WelcomePage /> : <Navigate to="/login" replace state={{ from: "/welcome" }} />} />
       <Route path="/destinations" element={user ? <DestinationTrackerPage /> : <Navigate to="/login" replace state={{ from: "/destinations" }} />} />
+      <Route path="/starred" element={user ? <DestinationTrackerPage /> : <Navigate to="/login" replace state={{ from: "/starred" }} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

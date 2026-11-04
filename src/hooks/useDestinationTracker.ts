@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  addStar,
   createDestination as createDestinationRecord,
   deleteDestination as deleteDestinationRecord,
   getDestinationErrorMessage,
+  getStarErrorMessage,
+  listStarredDestinationIds,
   listCountries,
   listDestinations,
+  removeStar,
   updateDestination as updateDestinationRecord,
   type Country,
   type Destination,
@@ -16,6 +20,10 @@ export function useDestinationTracker() {
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [starredDestinationIds, setStarredDestinationIds] = useState<Set<string>>(() => new Set());
+  const [starsLoading, setStarsLoading] = useState(true);
+  const [starsError, setStarsError] = useState("");
+  const [pendingStarIds, setPendingStarIds] = useState<Set<string>>(() => new Set());
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -34,9 +42,23 @@ export function useDestinationTracker() {
     }
   }, []);
 
+  const reloadStars = useCallback(async () => {
+    setStarsLoading(true);
+    setStarsError("");
+    try {
+      const ids = await listStarredDestinationIds();
+      setStarredDestinationIds(new Set(ids));
+    } catch (cause) {
+      setStarsError(getStarErrorMessage(cause));
+    } finally {
+      setStarsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void reload();
-  }, [reload]);
+    void reloadStars();
+  }, [reload, reloadStars]);
 
   const create = useCallback(async (input: DestinationInput) => {
     try {
@@ -60,10 +82,54 @@ export function useDestinationTracker() {
     try {
       await deleteDestinationRecord(id);
       await reload();
+      await reloadStars();
     } catch (cause) {
       throw new Error(getDestinationErrorMessage(cause));
     }
-  }, [reload]);
+  }, [reload, reloadStars]);
 
-  return { countries, destinations, loading, error, reload, create, update, remove };
+  const toggleStar = useCallback(async (destinationId: string) => {
+    if (pendingStarIds.has(destinationId) || starsLoading || starsError) return;
+    const wasStarred = starredDestinationIds.has(destinationId);
+    setPendingStarIds((current) => new Set(current).add(destinationId));
+    setStarsError("");
+    try {
+      if (wasStarred) {
+        await removeStar(destinationId);
+        setStarredDestinationIds((current) => {
+          const next = new Set(current);
+          next.delete(destinationId);
+          return next;
+        });
+      } else {
+        await addStar(destinationId);
+        setStarredDestinationIds((current) => new Set(current).add(destinationId));
+      }
+    } catch (cause) {
+      setStarsError(getStarErrorMessage(cause));
+    } finally {
+      setPendingStarIds((current) => {
+        const next = new Set(current);
+        next.delete(destinationId);
+        return next;
+      });
+    }
+  }, [pendingStarIds, starredDestinationIds, starsError, starsLoading]);
+
+  return {
+    countries,
+    destinations,
+    loading,
+    error,
+    reload,
+    create,
+    update,
+    remove,
+    starredDestinationIds,
+    starsLoading,
+    starsError,
+    pendingStarIds,
+    reloadStars,
+    toggleStar,
+  };
 }

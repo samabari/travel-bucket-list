@@ -8,10 +8,11 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Star,
   Trash2,
   X,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useDestinationTracker } from "../hooks/useDestinationTracker";
 import type { Country, Destination, DestinationInput, DestinationStatus } from "../lib/destinations";
 import "./destination-tracker.css";
@@ -61,12 +62,20 @@ function formatDate(value: string | null) {
 
 function DestinationCard({
   destination,
+  starred,
+  starPending,
+  starsUnavailable,
   onEdit,
   onDelete,
+  onToggleStar,
 }: {
   destination: Destination;
+  starred: boolean;
+  starPending: boolean;
+  starsUnavailable: boolean;
   onEdit: (destination: Destination) => void;
   onDelete: (destination: Destination) => void;
+  onToggleStar: (destinationId: string) => void;
 }) {
   const photoUrl = safePhotoUrl(destination.photoUrl);
   const date = formatDate(destination.visitDate);
@@ -90,6 +99,18 @@ function DestinationCard({
           </div>
         )}
         <div className="destination-card-actions">
+          <button
+            className={`destination-icon-button destination-star-button${starred ? " is-starred" : ""}`}
+            type="button"
+            onClick={() => onToggleStar(destination.id)}
+            aria-label={`${starred ? "Unstar" : "Star"} ${destination.name}`}
+            aria-pressed={starred}
+            disabled={starPending || starsUnavailable}
+            title={starred ? "Remove from starred destinations" : "Add to starred destinations"}
+          >
+            <Star size={14} fill={starred ? "currentColor" : "none"} />
+            <span>{starPending ? "Saving" : starred ? "Starred" : "Star"}</span>
+          </button>
           <button className="destination-icon-button" type="button" onClick={() => onEdit(destination)} aria-label={`Edit ${destination.name}`}>
             <Pencil size={14} /><span>Edit</span>
           </button>
@@ -284,7 +305,24 @@ function DestinationFormDialog({
 }
 
 export default function DestinationTrackerPage() {
-  const { countries, destinations, loading, error, reload, create, update, remove } = useDestinationTracker();
+  const {
+    countries,
+    destinations,
+    loading,
+    error,
+    reload,
+    create,
+    update,
+    remove,
+    starredDestinationIds,
+    starsLoading,
+    starsError,
+    pendingStarIds,
+    reloadStars,
+    toggleStar,
+  } = useDestinationTracker();
+  const { pathname } = useLocation();
+  const starredOnly = pathname === "/starred";
   const [formTarget, setFormTarget] = useState<Destination | null | undefined>(undefined);
   const [deleteTarget, setDeleteTarget] = useState<Destination | null>(null);
   const [mutationBusy, setMutationBusy] = useState(false);
@@ -359,8 +397,11 @@ export default function DestinationTrackerPage() {
     }
   }
 
-  const visited = destinations.filter((destination) => destination.status === "visited");
-  const wishlist = destinations.filter((destination) => destination.status === "wishlist");
+  const visibleDestinations = starredOnly
+    ? destinations.filter((destination) => starredDestinationIds.has(destination.id))
+    : destinations;
+  const visited = visibleDestinations.filter((destination) => destination.status === "visited");
+  const wishlist = visibleDestinations.filter((destination) => destination.status === "wishlist");
 
   function renderSection(title: string, eyebrow: string, entries: Destination[], emptyTitle: string, emptyCopy: string, isWishlist: boolean) {
     return (
@@ -372,7 +413,16 @@ export default function DestinationTrackerPage() {
         {entries.length ? (
           <div className="destination-grid">
             {entries.map((destination) => (
-              <DestinationCard key={destination.id} destination={destination} onEdit={openEdit} onDelete={setDeleteTarget} />
+              <DestinationCard
+                key={destination.id}
+                destination={destination}
+                starred={starredDestinationIds.has(destination.id)}
+                starPending={pendingStarIds.has(destination.id)}
+                starsUnavailable={starsLoading || !!starsError}
+                onEdit={openEdit}
+                onDelete={setDeleteTarget}
+                onToggleStar={(id) => { void toggleStar(id); }}
+              />
             ))}
           </div>
         ) : (
@@ -393,18 +443,28 @@ export default function DestinationTrackerPage() {
         <div className="destination-topline">
           <Link className="destination-home-link" to="/">Elsewhere</Link>
           <span className="destination-topline-title"><Compass size={14} /> A PERSONAL TRAVEL JOURNAL</span>
+          <nav className="destination-page-nav" aria-label="Destination collections">
+            <Link to="/destinations" aria-current={!starredOnly ? "page" : undefined}>My destinations</Link>
+            <Link to="/starred" aria-current={starredOnly ? "page" : undefined}>Starred destinations</Link>
+          </nav>
           <Link className="destination-account-link" to="/welcome">Your space</Link>
           <span className="destination-privacy"><LockKeyhole size={12} /> JUST FOR YOU</span>
         </div>
         <header className="destination-intro">
           <div>
-            <span className="destination-kicker">YOUR PLACES, YOUR PACE</span>
-            <h1>A world of<br /><em>your own.</em></h1>
-            <p>Keep the places that stay with you, and leave a little room for the ones still calling.</p>
+            <span className="destination-kicker">{starredOnly ? "THE PLACES YOU KEEP CLOSE" : "YOUR PLACES, YOUR PACE"}</span>
+            <h1>{starredOnly ? <>Worth keeping<br /><em>close.</em></> : <>A world of<br /><em>your own.</em></>}</h1>
+            <p>{starredOnly ? "A small collection of places you want to find again, whenever the world feels far away." : "Keep the places that stay with you, and leave a little room for the ones still calling."}</p>
           </div>
-          <button className="destination-add-button" type="button" onClick={openCreate}>
-            <Plus size={16} /> Add a place
-          </button>
+          {starredOnly ? (
+            <Link className="destination-add-button destination-browse-button" to="/destinations">
+              Browse destinations <ArrowRight size={15} />
+            </Link>
+          ) : (
+            <button className="destination-add-button" type="button" onClick={openCreate}>
+              <Plus size={16} /> Add a place
+            </button>
+          )}
         </header>
         <div className="destination-rule"><ImageIcon size={15} /><span>Collect moments, not miles</span></div>
 
@@ -417,14 +477,33 @@ export default function DestinationTrackerPage() {
           </div>
         )}
 
-        {loading ? (
+        {starsError && (
+          <div className="destination-page-error destination-star-error" role="alert">
+            <AlertCircle size={17} />
+            <div>{starsError}</div>
+            <button type="button" onClick={() => void reloadStars()}>Try again</button>
+          </div>
+        )}
+
+        {loading || (starredOnly && starsLoading) ? (
           <LoadingCollection />
-        ) : error && destinations.length === 0 ? (
+        ) : error ? (
           null
+        ) : starredOnly && starsError ? (
+          null
+        ) : starredOnly && visibleDestinations.length === 0 ? (
+          <section className="destination-section" aria-labelledby="starred-empty-title">
+            <div className="destination-empty destination-star-empty">
+              <span className="destination-empty-mark"><Star size={20} /></span>
+              <h3 id="starred-empty-title">Nothing starred just yet.</h3>
+              <p>When a place feels worth keeping close, star it from your destinations and it will be waiting here.</p>
+              <Link to="/destinations">Browse my destinations</Link>
+            </div>
+          </section>
         ) : (
           <>
-            {renderSection("Been there", "PLACES THAT STAY", visited, "The first page is waiting.", "When somewhere leaves a mark, save it here so you can find your way back.", false)}
-            {renderSection("Want to visit", "PLACES TO COME", wishlist, "Somewhere on your mind?", "Save the places you’re dreaming about, and keep them close until the day you go.", true)}
+            {renderSection("Been there", starredOnly ? "STARRED MEMORIES" : "PLACES THAT STAY", visited, starredOnly ? "No visited places starred." : "The first page is waiting.", starredOnly ? "Star a visited place and it will find a home here." : "When somewhere leaves a mark, save it here so you can find your way back.", false)}
+            {renderSection("Want to visit", starredOnly ? "STARRED POSSIBILITIES" : "PLACES TO COME", wishlist, starredOnly ? "No future trips starred." : "Somewhere on your mind?", starredOnly ? "Keep a dream destination close by starring it from your list." : "Save the places you’re dreaming about, and keep them close until the day you go.", !starredOnly)}
           </>
         )}
         <footer className="destination-footer">
