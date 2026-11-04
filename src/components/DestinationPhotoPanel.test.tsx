@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DestinationPhotoPanel from "./DestinationPhotoPanel";
+import { DestinationPhotoOperationError } from "../lib/destination-photos";
 
 describe("DestinationPhotoPanel", () => {
   const createObjectUrl = vi.fn(() => "blob:destination-preview");
@@ -123,7 +124,12 @@ describe("DestinationPhotoPanel", () => {
         destinationName="Kyoto"
         currentPhotoUrl={null}
         hasPhoto={false}
-        onUpload={vi.fn().mockRejectedValue(new Error("You don’t have permission to change this destination’s photo."))}
+        onUpload={vi.fn().mockRejectedValue(new DestinationPhotoOperationError(
+          "storage upload",
+          "You don’t have permission to change this destination’s photo. Check that you’re signed in and try again.",
+          "42501",
+          "new row violates row-level security policy",
+        ))}
         onRemove={vi.fn()}
       />,
     );
@@ -133,5 +139,8 @@ describe("DestinationPhotoPanel", () => {
 
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("You don’t have permission");
+    expect(screen.getByText("storage upload")).toBeTruthy();
+    expect(screen.getByText("42501")).toBeTruthy();
+    expect(screen.getByText("new row violates row-level security policy")).toBeTruthy();
   });
 });

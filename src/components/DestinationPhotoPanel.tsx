@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, ImagePlus, LoaderCircle, Trash2, Upload, X } from "lucide-react";
-import { validateDestinationPhoto } from "../lib/destination-photos";
+import {
+  DestinationPhotoOperationError,
+  validateDestinationPhoto,
+} from "../lib/destination-photos";
 import "./destination-photo-panel.css";
 
 export interface DestinationPhotoPanelProps {
@@ -33,6 +36,7 @@ export default function DestinationPhotoPanel({
   const [override, setOverride] = useState<PhotoOverride>(null);
   const [validationError, setValidationError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [diagnostic, setDiagnostic] = useState<DestinationPhotoOperationError | null>(null);
   const [cleanupWarning, setCleanupWarning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmingRemoval, setConfirmingRemoval] = useState(false);
@@ -65,6 +69,7 @@ export default function DestinationPhotoPanel({
     if (!file) return;
     setValidationError("");
     setActionError("");
+    setDiagnostic(null);
     setCleanupWarning(false);
     setConfirmingRemoval(false);
     const validation = validateDestinationPhoto(file);
@@ -81,6 +86,7 @@ export default function DestinationPhotoPanel({
     setSelectedFile(null);
     setValidationError("");
     setActionError("");
+    setDiagnostic(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -88,6 +94,7 @@ export default function DestinationPhotoPanel({
     if (!selectedFile || busy) return;
     setBusy(true);
     setActionError("");
+    setDiagnostic(null);
     setValidationError("");
     setCleanupWarning(false);
     try {
@@ -101,6 +108,7 @@ export default function DestinationPhotoPanel({
       if (inputRef.current) inputRef.current.value = "";
     } catch (cause) {
       setActionError(errorMessage(cause, "We couldn’t save this photo. Please try again."));
+      setDiagnostic(cause instanceof DestinationPhotoOperationError ? cause : null);
     } finally {
       setBusy(false);
     }
@@ -110,6 +118,7 @@ export default function DestinationPhotoPanel({
     if (busy) return;
     setBusy(true);
     setActionError("");
+    setDiagnostic(null);
     setCleanupWarning(false);
     try {
       const result = await onRemove();
@@ -121,6 +130,7 @@ export default function DestinationPhotoPanel({
       if (inputRef.current) inputRef.current.value = "";
     } catch (cause) {
       setActionError(errorMessage(cause, "We couldn’t remove this photo. Please try again."));
+      setDiagnostic(cause instanceof DestinationPhotoOperationError ? cause : null);
     } finally {
       setBusy(false);
     }
@@ -210,6 +220,19 @@ export default function DestinationPhotoPanel({
 
       {validationError && <p className="dpp-validation" role="alert"><AlertCircle size={14} />{validationError}</p>}
       {actionError && <p className="dpp-error" role="alert"><AlertCircle size={14} />{actionError}</p>}
+      {diagnostic && (
+        <details className="dpp-diagnostic">
+          <summary>Supabase error details</summary>
+          <dl>
+            <dt>Operation</dt>
+            <dd>{diagnostic.stage}</dd>
+            <dt>Error code</dt>
+            <dd>{diagnostic.supabaseCode ?? "Not provided"}</dd>
+            <dt>Supabase message</dt>
+            <dd>{diagnostic.supabaseMessage ?? "No Supabase error message was returned."}</dd>
+          </dl>
+        </details>
+      )}
       {cleanupWarning && <p className="dpp-notice" role="status">The photo was updated, but an older stored copy could not be cleared.</p>}
 
       {confirmingRemoval && !selectedFile && (

@@ -30,13 +30,28 @@ describe("destination photo storage", () => {
     });
   });
 
-  function makeDatabaseUpdate() {
-    const single = vi.fn().mockResolvedValue({ data: { id: destinationId }, error: null });
-    const select = vi.fn().mockReturnValue({ single });
-    const eq = vi.fn().mockReturnValue({ select });
-    const update = vi.fn().mockReturnValue({ eq });
-    supabaseMock.from.mockReturnValue({ update });
-    return { update, eq, select, single };
+  function makeDatabaseUpdate({
+    owned = true,
+    updateError = null,
+  }: { owned?: boolean; updateError?: { code: string; message: string } | null } = {}) {
+    const maybeSingleOwnership = vi.fn().mockResolvedValue({
+      data: owned ? { id: destinationId } : null,
+      error: null,
+    });
+    const ownershipEqUser = vi.fn().mockReturnValue({ maybeSingle: maybeSingleOwnership });
+    const ownershipEqId = vi.fn().mockReturnValue({ eq: ownershipEqUser });
+    const ownershipSelect = vi.fn().mockReturnValue({ eq: ownershipEqId });
+
+    const maybeSingleUpdate = vi.fn().mockResolvedValue({
+      data: updateError ? null : { id: destinationId },
+      error: updateError,
+    });
+    const updateSelect = vi.fn().mockReturnValue({ maybeSingle: maybeSingleUpdate });
+    const updateEqUser = vi.fn().mockReturnValue({ select: updateSelect });
+    const updateEqId = vi.fn().mockReturnValue({ eq: updateEqUser, select: updateSelect });
+    const update = vi.fn().mockReturnValue({ eq: updateEqId });
+    supabaseMock.from.mockReturnValue({ select: ownershipSelect, update });
+    return { update, updateEqId, updateEqUser, ownershipSelect, ownershipEqId, ownershipEqUser };
   }
 
   function makeBucket(overrides: Record<string, unknown> = {}) {
@@ -68,7 +83,14 @@ describe("destination photo storage", () => {
   });
 
   it("uploads into the authenticated user's destination folder and stores the path", async () => {
-    const { update, eq } = makeDatabaseUpdate();
+    const {
+      update,
+      updateEqId,
+      updateEqUser,
+      ownershipSelect,
+      ownershipEqId,
+      ownershipEqUser,
+    } = makeDatabaseUpdate();
     const bucket = makeBucket();
     const file = { name: "trip.png", type: "image/png", size: 1024 } as File;
 
@@ -82,8 +104,13 @@ describe("destination photo storage", () => {
       upsert: false,
     });
     expect(supabaseMock.storage.from).toHaveBeenCalledWith(DESTINATION_PHOTO_BUCKET);
+    expect(supabaseMock.from).toHaveBeenCalledWith("destinations");
+    expect(ownershipSelect).toHaveBeenCalledWith("id");
+    expect(ownershipEqId).toHaveBeenCalledWith("id", destinationId);
+    expect(ownershipEqUser).toHaveBeenCalledWith("user_id", userId);
     expect(update).toHaveBeenCalledWith({ photo_url: path });
-    expect(eq).toHaveBeenCalledWith("id", destinationId);
+    expect(updateEqId).toHaveBeenCalledWith("id", destinationId);
+    expect(updateEqUser).toHaveBeenCalledWith("user_id", userId);
     expect(result).toEqual({ displayUrl: "https://signed.example/photo.jpg", cleanupWarning: false });
   });
 
@@ -119,16 +146,60 @@ describe("destination photo storage", () => {
     expect(bucket.remove).not.toHaveBeenCalled();
   });
 
-  it("surfaces storage permission failures without exposing raw details", async () => {
+  it("identifies the exact Storage error stage, code, and message", async () => {
+    const database = makeDatabaseUpdate();
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    const storageError = { code: "42501", message: "new row violates row-level security policy" };
     const bucket = makeBucket({
-      upload: vi.fn().mockResolvedValue({ error: { code: "42501", message: "row-level security policy denied" } }),
+      upload: vi.fn().mockResolvedValue({ error: storageError }),
     });
     const file = { name: "trip.jpg", type: "image/jpeg", size: 1024 } as File;
 
-    await expect(uploadDestinationPhoto(destinationId, file, null))
-      .rejects.toThrow("Check that you’re signed in");
+    await expect(uploadDestinationPhoto(destinationId, file, null)).rejects.toMatchObject({
+      stage: "storage upload",
+      supabaseCode: "42501",
+      supabaseMessage: storageError.message,
+    });
+    expect(diagnostic).toHaveBeenCalledWith("[destination-photo] storage upload failed", {
+      code: storageError.code,
+      message: storageError.message,
+    });
     expect(bucket.upload).toHaveBeenCalledTimes(1);
-    expect(supabaseMock.from).not.toHaveBeenCalled();
+    expect(database.update).not.toHaveBeenCalled();
+  });
+
+  it("does not upload when the authenticated user does not own the destination", async () => {
+    const database = makeDatabaseUpdate({ owned: false });
+    const bucket = makeBucket();
+    const file = { name: "trip.jpg", type: "image/jpeg", size: 1024 } as File;
+
+    await expect(uploadDestinationPhoto(destinationId, file, null)).rejects.toMatchObject({
+      stage: "destination ownership check",
+      message: "This destination isn’t available in your account. Refresh your list and try again.",
+    });
+    expect(bucket.upload).not.toHaveBeenCalled();
+    expect(database.update).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes a destinations.photo_url update error from a Storage error", async () => {
+    const updateError = { code: "42501", message: "new row violates row-level security policy" };
+    const database = makeDatabaseUpdate({ updateError });
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    const bucket = makeBucket();
+    const file = { name: "trip.jpg", type: "image/jpeg", size: 1024 } as File;
+
+    await expect(uploadDestinationPhoto(destinationId, file, null)).rejects.toMatchObject({
+      stage: "destinations.photo_url update",
+      supabaseCode: "42501",
+      supabaseMessage: updateError.message,
+    });
+    expect(bucket.upload).toHaveBeenCalledTimes(1);
+    expect(bucket.remove).toHaveBeenCalledWith([bucket.upload.mock.calls[0]?.[0]]);
+    expect(database.update).toHaveBeenCalledWith({ photo_url: expect.stringMatching(/\.jpg$/) });
+    expect(diagnostic).toHaveBeenCalledWith("[destination-photo] destinations.photo_url update failed", {
+      code: updateError.code,
+      message: updateError.message,
+    });
   });
 
   it("rejects invalid files before making storage requests", async () => {

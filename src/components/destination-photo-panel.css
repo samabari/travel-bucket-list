@@ -324,6 +324,37 @@
   line-height: 1.55;
 }
 
+.dpp-diagnostic {
+  margin-top: 9px;
+  padding: 9px 11px;
+  color: #63736f;
+  background: #f3f1eb;
+  border: 1px solid #e0ddd3;
+  font-size: 10px;
+}
+
+.dpp-diagnostic summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.dpp-diagnostic dl {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 5px 9px;
+  margin: 9px 0 0;
+}
+
+.dpp-diagnostic dt {
+  color: #87918b;
+}
+
+.dpp-diagnostic dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .dpp-busy-note {
   display: inline-flex;
   align-items: center;
