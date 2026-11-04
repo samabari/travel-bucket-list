@@ -15,6 +15,12 @@ import {
   type Destination,
   type DestinationInput,
 } from "../lib/destinations";
+import {
+  getDestinationPhotoErrorMessage,
+  removeDestinationPhoto as removeDestinationPhotoRecord,
+  uploadDestinationPhoto as uploadDestinationPhotoRecord,
+  type DestinationPhotoMutationResult,
+} from "../lib/destination-photos";
 
 export function useDestinationTracker() {
   const [countries, setCountries] = useState<Country[]>([]);
@@ -88,6 +94,33 @@ export function useDestinationTracker() {
     }
   }, [reload]);
 
+  const uploadPhoto = useCallback(async (
+    id: string,
+    file: File,
+    previousPhotoValue: string | null,
+  ): Promise<DestinationPhotoMutationResult> => {
+    try {
+      const result = await uploadDestinationPhotoRecord(id, file, previousPhotoValue);
+      await reload();
+      return result;
+    } catch (cause) {
+      throw cause instanceof Error ? cause : new Error(getDestinationPhotoErrorMessage(cause));
+    }
+  }, [reload]);
+
+  const removePhoto = useCallback(async (
+    id: string,
+    currentPhotoValue: string | null,
+  ): Promise<DestinationPhotoMutationResult> => {
+    try {
+      const result = await removeDestinationPhotoRecord(id, currentPhotoValue);
+      await reload();
+      return result;
+    } catch (cause) {
+      throw cause instanceof Error ? cause : new Error(getDestinationPhotoErrorMessage(cause));
+    }
+  }, [reload]);
+
   const remove = useCallback(async (id: string) => {
     try {
       await deleteDestinationRecord(id);
@@ -135,6 +168,8 @@ export function useDestinationTracker() {
     create,
     update,
     saveNotes,
+    uploadPhoto,
+    removePhoto,
     remove,
     starredDestinationIds,
     starsLoading,

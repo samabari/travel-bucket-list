@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { resolveDestinationPhotoUrl } from "./destination-photos";
 
 export type DestinationStatus = "visited" | "wishlist";
 
@@ -17,6 +18,7 @@ export interface Destination {
   rating: number | null;
   notes: string | null;
   photoUrl: string | null;
+  photoDisplayUrl?: string | null;
   createdAt: string;
 }
 
@@ -131,7 +133,7 @@ export async function listDestinations(): Promise<Destination[]> {
   const countryNames = new Map(countries.map((country) => [country.id, country.name]));
   const rows = (destinationResult.data ?? []) as DestinationRow[];
 
-  return rows.map((row) => ({
+  return Promise.all(rows.map(async (row) => ({
     id: row.id,
     countryId: row.country_id,
     countryName: countryNames.get(row.country_id) ?? "Country unavailable",
@@ -141,8 +143,9 @@ export async function listDestinations(): Promise<Destination[]> {
     rating: row.rating === null ? null : Number(row.rating),
     notes: row.notes,
     photoUrl: row.photo_url,
+    photoDisplayUrl: await resolveDestinationPhotoUrl(row.photo_url),
     createdAt: row.created_at,
-  }));
+  })));
 }
 
 export async function listStarredDestinationIds(): Promise<string[]> {

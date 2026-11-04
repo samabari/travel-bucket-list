@@ -18,7 +18,9 @@ import {
 import { Link, useLocation } from "react-router-dom";
 import { useDestinationTracker } from "../hooks/useDestinationTracker";
 import type { Country, Destination, DestinationInput, DestinationStatus } from "../lib/destinations";
+import { isStoredDestinationPhoto, type DestinationPhotoMutationResult } from "../lib/destination-photos";
 import { filterAndSortDestinations, type DestinationSort, type DestinationStatusFilter } from "../lib/destination-filters";
+import DestinationPhotoPanel from "./DestinationPhotoPanel";
 import "./destination-tracker.css";
 
 type DestinationForm = {
@@ -90,7 +92,7 @@ function DestinationCard({
   onDelete: (destination: Destination) => void;
   onToggleStar: (destinationId: string) => void;
 }) {
-  const photoUrl = safePhotoUrl(destination.photoUrl);
+  const photoUrl = destination.photoDisplayUrl || safePhotoUrl(destination.photoUrl);
   const date = formatDate(destination.visitDate);
   return (
     <article className="destination-card">
@@ -144,11 +146,22 @@ function TravelNotesDialog({
   busy,
   onClose,
   onSave,
+  onUploadPhoto,
+  onRemovePhoto,
 }: {
   destination: Destination;
   busy: boolean;
   onClose: () => void;
   onSave: (destinationId: string, notes: string) => Promise<void>;
+  onUploadPhoto: (
+    destinationId: string,
+    file: File,
+    previousPhotoValue: string | null,
+  ) => Promise<DestinationPhotoMutationResult>;
+  onRemovePhoto: (
+    destinationId: string,
+    currentPhotoValue: string | null,
+  ) => Promise<DestinationPhotoMutationResult>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(destination.notes ?? "");
@@ -186,6 +199,14 @@ function TravelNotesDialog({
           </div>
           <button className="destination-close" type="button" onClick={onClose} aria-label="Close travel notes" disabled={busy}><X size={18} /></button>
         </div>
+
+        <DestinationPhotoPanel
+          destinationName={destination.name}
+          currentPhotoUrl={(destination.photoDisplayUrl ?? safePhotoUrl(destination.photoUrl)) || null}
+          hasPhoto={Boolean(destination.photoUrl)}
+          onUpload={(file) => onUploadPhoto(destination.id, file, destination.photoUrl)}
+          onRemove={() => onRemovePhoto(destination.id, destination.photoUrl)}
+        />
 
         <section className="travel-notes-section" aria-labelledby="travel-notes-heading">
           <div className="travel-notes-heading">
@@ -318,7 +339,7 @@ function DestinationFormDialog({
       return;
     }
     const photoUrl = form.photoUrl.trim();
-    if (photoUrl) {
+    if (photoUrl && !isStoredDestinationPhoto(photoUrl)) {
       const validUrl = safePhotoUrl(photoUrl);
       if (!validUrl) {
         setValidationError("Enter a complete photo link beginning with http:// or https://.");
@@ -409,9 +430,18 @@ function DestinationFormDialog({
             <textarea id="destination-notes" name="notes" maxLength={2000} placeholder="The light, the food, the feeling of getting there…" value={form.notes} onChange={(event) => setField("notes", event.target.value)} />
           </div>
           <div className="destination-field is-full">
-            <label htmlFor="destination-photo">Photo link</label>
-            <input id="destination-photo" name="photoUrl" type="url" inputMode="url" placeholder="https://…" value={form.photoUrl} onChange={(event) => setField("photoUrl", event.target.value)} aria-describedby="destination-photo-hint" />
-            <span className="destination-photo-hint" id="destination-photo-hint">A link to an image is optional. Use a full http or https address.</span>
+            {isStoredDestinationPhoto(form.photoUrl) ? (
+              <>
+                <label>Photo link</label>
+                <span className="destination-photo-hint">This place has a private uploaded photo. View or replace it in Travel Notes.</span>
+              </>
+            ) : (
+              <>
+                <label htmlFor="destination-photo">Photo link</label>
+                <input id="destination-photo" name="photoUrl" type="url" inputMode="url" placeholder="https://…" value={form.photoUrl} onChange={(event) => setField("photoUrl", event.target.value)} aria-describedby="destination-photo-hint" />
+                <span className="destination-photo-hint" id="destination-photo-hint">A link to an image is optional. Use a full http or https address.</span>
+              </>
+            )}
           </div>
           {error && <p className="destination-form-error" role="alert">{error}</p>}
           <div className="destination-form-actions">
@@ -437,6 +467,8 @@ export default function DestinationTrackerPage() {
     create,
     update,
     saveNotes,
+    uploadPhoto,
+    removePhoto,
     remove,
     starredDestinationIds,
     starsLoading,
@@ -541,6 +573,9 @@ export default function DestinationTrackerPage() {
   const visited = visibleDestinations.filter((destination) => destination.status === "visited");
   const wishlist = visibleDestinations.filter((destination) => destination.status === "wishlist");
   const filtersAreActive = Boolean(filters.search.trim() || filters.countryId || filters.status !== "all" || filters.sort !== "newest");
+  const activeNotesDestination = notesTarget
+    ? destinations.find((destination) => destination.id === notesTarget.id) ?? notesTarget
+    : null;
 
   function clearFilters() {
     setFilters({ ...defaultDestinationFilters });
@@ -750,12 +785,14 @@ export default function DestinationTrackerPage() {
         />
       )}
 
-      {notesTarget && (
+      {activeNotesDestination && (
         <TravelNotesDialog
-          destination={notesTarget}
+          destination={activeNotesDestination}
           busy={notesBusy}
           onClose={() => { if (!notesBusy) setNotesTarget(null); }}
           onSave={submitTravelNotes}
+          onUploadPhoto={uploadPhoto}
+          onRemovePhoto={removePhoto}
         />
       )}
 
