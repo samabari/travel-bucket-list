@@ -229,6 +229,17 @@ export async function updateDestination(id: string, input: DestinationInput): Pr
   if (error) throwFriendly(error);
 }
 
+export async function updateDestinationNotes(id: string, notes: string): Promise<void> {
+  const normalizedNotes = notes.trim() ? notes : null;
+  const { error } = await getClient()
+    .from("destinations")
+    .update({ notes: normalizedNotes })
+    .eq("id", id)
+    .select("id")
+    .single();
+  if (error) throwFriendly(error);
+}
+
 export async function deleteDestination(id: string): Promise<void> {
   const { error } = await getClient()
     .from("destinations")

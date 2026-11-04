@@ -9,6 +9,7 @@ import {
   listCountries,
   listDestinations,
   removeStar,
+  updateDestinationNotes as updateDestinationNotesRecord,
   updateDestination as updateDestinationRecord,
   type Country,
   type Destination,
@@ -78,6 +79,15 @@ export function useDestinationTracker() {
     }
   }, [reload]);
 
+  const saveNotes = useCallback(async (id: string, notes: string) => {
+    try {
+      await updateDestinationNotesRecord(id, notes);
+      await reload();
+    } catch (cause) {
+      throw new Error(getDestinationErrorMessage(cause));
+    }
+  }, [reload]);
+
   const remove = useCallback(async (id: string) => {
     try {
       await deleteDestinationRecord(id);
@@ -124,6 +134,7 @@ export function useDestinationTracker() {
     reload,
     create,
     update,
+    saveNotes,
     remove,
     starredDestinationIds,
     starsLoading,

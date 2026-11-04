@@ -387,6 +387,8 @@
 .destination-icon-button.destination-star-button.is-starred { color: #8d7140; background: #f1ebdb; border-color: #d7c69f; }
 .destination-icon-button.destination-star-button.is-starred svg { transform: scale(1.08); }
 .destination-icon-button.destination-star-button svg { transition: transform .18s ease; }
+.destination-icon-button.destination-notes-button { color: #607c78; border-color: #d4ded7; }
+.destination-icon-button.destination-notes-button:hover { color: #3f6267; background: #e8efea; }
 
 .destination-empty {
   display: flex;
@@ -567,6 +569,68 @@
 .destination-cancel-button:hover:not(:disabled) { background: #efeee7; }
 .destination-cancel-button:disabled { opacity: .6; cursor: wait; }
 .destination-save-button { min-height: 44px; }
+.travel-notes-dialog { width: min(100%, 680px); }
+.travel-notes-section {
+  padding: clamp(19px, 3vw, 27px);
+  background: rgba(235, 238, 229, .62);
+  border: 1px solid #dce1d7;
+}
+.travel-notes-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 19px; color: #6e8a88; }
+.travel-notes-heading > svg { flex: none; }
+.travel-notes-heading span { display: block; margin-bottom: 4px; color: #84918b; font-size: 8px; font-weight: 600; letter-spacing: .16em; }
+.travel-notes-heading h3 { margin: 0; color: #4a5e5c; font: 500 23px/1.15 "Playfair Display", Georgia, serif; }
+.travel-notes-view { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; }
+.travel-notes-content {
+  width: 100%;
+  min-height: 86px;
+  padding: 17px 18px;
+  color: #596b67;
+  background: rgba(251, 250, 246, .86);
+  border: 1px solid #e0e2d9;
+  font-size: 13px;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.travel-notes-empty {
+  width: 100%;
+  padding: 20px;
+  color: #7c8982;
+  background: rgba(251, 250, 246, .72);
+  border: 1px dashed #d5dcd2;
+}
+.travel-notes-empty h4 { margin: 0 0 6px; color: #526764; font: 500 19px "Playfair Display", Georgia, serif; }
+.travel-notes-empty p { margin: 0; font-size: 11px; line-height: 1.7; }
+.travel-notes-edit-button {
+  min-height: 39px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: #55747a;
+  background: transparent;
+  border: 1px solid #cbd8d4;
+  cursor: pointer;
+  font-size: 11px;
+}
+.travel-notes-edit-button:hover { background: #e8efea; }
+.travel-notes-form { display: flex; flex-direction: column; gap: 9px; }
+.travel-notes-form label { color: #506461; font-size: 11px; font-weight: 600; }
+.travel-notes-form textarea {
+  width: 100%;
+  min-height: 230px;
+  padding: 13px 14px;
+  color: #34464c;
+  background: #fbfaf6;
+  border: 1px solid #d8dcd5;
+  border-radius: 2px;
+  font: 12px/1.75 "DM Sans", sans-serif;
+  resize: vertical;
+}
+.travel-notes-form textarea:focus { border-color: #7898a2; outline: none; box-shadow: 0 0 0 3px rgba(113, 143, 156, .12); }
+.travel-notes-form textarea::placeholder { color: #a3aaa4; }
+.travel-notes-error { margin: 0; color: #a65748; font-size: 11px; line-height: 1.55; }
+.travel-notes-form .destination-form-actions { padding-top: 8px; }
 .destination-confirm-copy { color: #75817d; font-size: 13px; line-height: 1.75; margin: 14px 0 22px; }
 .destination-confirm-copy strong { color: #4a6266; font-weight: 600; }
 .destination-confirm-actions { display: flex; justify-content: flex-end; gap: 9px; }
