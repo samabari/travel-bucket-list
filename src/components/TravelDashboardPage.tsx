@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Compass,
@@ -54,6 +54,7 @@ function DashboardTooltip({ active, payload, label }: {
 
 export default function TravelDashboardPage() {
   const { destinations, loading, error, reload } = useDestinationTracker();
+  const navigate = useNavigate();
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
   const stats = useMemo(() => calculateDashboardStats(destinations), [destinations]);
   const selectedDestination = destinations.find((destination) => destination.id === selectedDestinationId) ?? null;
@@ -146,9 +147,15 @@ export default function TravelDashboardPage() {
         ) : destinations.length === 0 ? (
           <section className="dashboard-empty" aria-labelledby="dashboard-empty-title">
             <span className="dashboard-empty-icon"><MapPin size={20} /></span>
-            <h2 id="dashboard-empty-title">Your first place is waiting.</h2>
-            <p>Start with somewhere you’ve loved, or a place you’re still dreaming about. Your story can begin anywhere.</p>
-            <Link className="dashboard-add-link" to="/destinations">Add your first destination <ArrowRight size={15} /></Link>
+            <h2 id="dashboard-empty-title">Welcome to your Travel Bucket List! 🌎</h2>
+            <p>Start by adding your first destination, then track your adventures, save favorites, and explore your travel stats.</p>
+            <button
+              className="dashboard-add-link dashboard-add-button"
+              type="button"
+              onClick={() => navigate("/destinations", { state: { openCreateDestination: true } })}
+            >
+              Add Your First Destination <ArrowRight size={15} />
+            </button>
           </section>
         ) : (
           <>

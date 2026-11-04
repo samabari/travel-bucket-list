@@ -42,9 +42,9 @@ vi.mock("../hooks/useDestinationTracker", () => ({
   useDestinationTracker: () => tracker,
 }));
 
-function renderPage(path = "/destinations") {
+function renderPage(path = "/destinations", state?: Record<string, boolean>) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[{ pathname: path, state }]}>
       <DestinationTrackerPage />
     </MemoryRouter>,
   );
@@ -90,6 +90,13 @@ describe("DestinationTrackerPage", () => {
     tracker.uploadPhoto.mockResolvedValue({ displayUrl: "https://signed.example/photo.jpg", cleanupWarning: false });
     tracker.removePhoto.mockResolvedValue({ displayUrl: undefined, cleanupWarning: false });
     vi.clearAllMocks();
+  });
+
+  it("opens the existing add form when launched from the dashboard", () => {
+    renderPage("/destinations", { openCreateDestination: true });
+
+    expect(screen.getByRole("dialog", { name: "Where have you been?" })).toBeTruthy();
+    expect(screen.getByLabelText(/place name/i)).toBeTruthy();
   });
 
   it("creates a destination with a new country and optional details", async () => {

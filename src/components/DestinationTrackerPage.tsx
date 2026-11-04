@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDestinationTracker } from "../hooks/useDestinationTracker";
 import type { Country, Destination, DestinationInput, DestinationStatus } from "../lib/destinations";
 import { isStoredDestinationPhoto, type DestinationPhotoMutationResult } from "../lib/destination-photos";
@@ -508,8 +508,13 @@ export default function DestinationTrackerPage() {
     reloadStars,
     toggleStar,
   } = useDestinationTracker();
-  const { pathname } = useLocation();
+  const { pathname, state } = useLocation();
+  const navigate = useNavigate();
   const starredOnly = pathname === "/starred";
+  const openCreateFromDashboard = typeof state === "object"
+    && state !== null
+    && "openCreateDestination" in state
+    && state.openCreateDestination === true;
   const [formTarget, setFormTarget] = useState<Destination | null | undefined>(undefined);
   const [notesTarget, setNotesTarget] = useState<Destination | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Destination | null>(null);
@@ -518,6 +523,13 @@ export default function DestinationTrackerPage() {
   const [actionError, setActionError] = useState("");
   const [filters, setFilters] = useState(defaultDestinationFilters);
   const errorFocusRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (pathname !== "/destinations" || !openCreateFromDashboard) return;
+    setActionError("");
+    setFormTarget(null);
+    navigate(pathname, { replace: true, state: null });
+  }, [navigate, openCreateFromDashboard, pathname]);
 
   useEffect(() => {
     if (actionError) errorFocusRef.current?.focus();
