@@ -32,6 +32,8 @@ const tracker = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   saveNotes: vi.fn(),
+  uploadPhoto: vi.fn(),
+  removePhoto: vi.fn(),
   remove: vi.fn(),
   toggleStar: vi.fn(),
 }));
@@ -85,6 +87,8 @@ describe("DestinationTrackerPage", () => {
     tracker.starsError = "";
     tracker.pendingStarIds = new Set();
     tracker.saveNotes.mockResolvedValue(undefined);
+    tracker.uploadPhoto.mockResolvedValue({ displayUrl: "https://signed.example/photo.jpg", cleanupWarning: false });
+    tracker.removePhoto.mockResolvedValue({ displayUrl: undefined, cleanupWarning: false });
     vi.clearAllMocks();
   });
 
@@ -208,6 +212,21 @@ describe("DestinationTrackerPage", () => {
     await user.click(screen.getByRole("button", { name: "Save Notes" }));
 
     await waitFor(() => expect(tracker.saveNotes).toHaveBeenCalledWith("destination-1", ""));
+  });
+
+  it("shows uploaded photos in the destination detail view", async () => {
+    const user = userEvent.setup();
+    const destination = makeDestination("destination-1", "Kyoto", "country-jp", "Japan", "visited", "2025-03-01T12:00:00Z");
+    destination.photoUrl = "user-123/destination-1/photo.jpg";
+    destination.photoDisplayUrl = "https://signed.example/photo.jpg";
+    tracker.destinations = [destination];
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Travel notes for Kyoto" }));
+
+    const photo = screen.getByAltText("Kyoto travel memory") as HTMLImageElement;
+    expect(photo.src).toBe("https://signed.example/photo.jpg");
+    expect(screen.getByRole("heading", { name: "Destination photo" })).toBeTruthy();
   });
 
   it("requires confirmation before deleting a destination", async () => {
