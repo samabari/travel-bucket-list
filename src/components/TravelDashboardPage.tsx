@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -8,6 +8,7 @@ import {
   LockKeyhole,
   MapPin,
   Route,
+  Sparkles,
 } from "lucide-react";
 import {
   Bar,
@@ -21,6 +22,7 @@ import {
 } from "recharts";
 import { useDestinationTracker } from "../hooks/useDestinationTracker";
 import { calculateDashboardStats } from "../lib/dashboard-stats";
+import { pickRandomWishlistDestination } from "../lib/random-destination-picker";
 import "./travel-dashboard.css";
 
 function DashboardLoading() {
@@ -52,10 +54,18 @@ function DashboardTooltip({ active, payload, label }: {
 
 export default function TravelDashboardPage() {
   const { destinations, loading, error, reload } = useDestinationTracker();
+  const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
   const stats = useMemo(() => calculateDashboardStats(destinations), [destinations]);
+  const selectedDestination = destinations.find((destination) => destination.id === selectedDestinationId) ?? null;
+  const hasWishlist = destinations.some((destination) => destination.status === "wishlist");
   const chartData = [
     { category: "Places", visited: stats.visitedDestinations, wishlist: stats.wishlistDestinations },
   ];
+
+  const pickDestination = () => {
+    const destination = pickRandomWishlistDestination(destinations, selectedDestinationId);
+    setSelectedDestinationId(destination?.id ?? null);
+  };
 
   return (
     <main className="travel-dashboard">
@@ -81,6 +91,48 @@ export default function TravelDashboardPage() {
         </header>
 
         <div className="dashboard-rule" aria-hidden="true"><Compass className="dashboard-rule-mark" size={15} strokeWidth={1.6} /></div>
+
+        {!loading && !error && (
+          <section className="dashboard-picker" aria-labelledby="dashboard-picker-title">
+            <div className="dashboard-picker-copy">
+              <span className="dashboard-picker-eyebrow"><Sparkles size={13} /> A LITTLE NUDGE FROM ELSEWHERE</span>
+              <h2 id="dashboard-picker-title">Let your wish list <em>choose the way.</em></h2>
+              <p>A small moment of discovery, picked from the places you’ve been dreaming about.</p>
+            </div>
+            <div className={`dashboard-picker-stage${selectedDestination ? " has-selection" : ""}`}>
+              {!hasWishlist ? (
+                <div className="dashboard-picker-empty">
+                  <span className="dashboard-picker-mark"><Compass size={19} strokeWidth={1.5} /></span>
+                  <div>
+                    <strong>No wishes on the map just yet.</strong>
+                    <p>Add somewhere you’d love to go, then let chance choose your next story.</p>
+                    <Link to="/destinations">Add a wish <ArrowRight size={14} /></Link>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {selectedDestination ? (
+                    <div className="dashboard-picker-result" aria-live="polite" key={selectedDestination.id}>
+                      <span className="dashboard-picker-result-label">YOUR NEXT POSSIBILITY</span>
+                      <MapPin size={21} strokeWidth={1.5} aria-hidden="true" />
+                      <strong>{selectedDestination.name}</strong>
+                      <span>{selectedDestination.countryName}</span>
+                    </div>
+                  ) : (
+                    <div className="dashboard-picker-prompt">
+                      <span className="dashboard-picker-orbit" aria-hidden="true"><Compass size={27} strokeWidth={1.25} /></span>
+                      <span>There’s a place with your name on it.</span>
+                    </div>
+                  )}
+                  <button className="dashboard-picker-button" type="button" onClick={pickDestination}>
+                    {selectedDestination ? "Pick Again" : "Pick My Next Trip!"}
+                    <ArrowRight size={15} />
+                  </button>
+                </>
+              )}
+            </div>
+          </section>
+        )}
 
         {loading ? (
           <DashboardLoading />
