@@ -22,19 +22,25 @@ const tracker = vi.hoisted(() => ({
   }[],
   loading: false,
   error: "",
+  starredDestinationIds: new Set<string>(),
+  starsLoading: false,
+  starsError: "",
+  pendingStarIds: new Set<string>(),
   reload: vi.fn(),
+  reloadStars: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
+  toggleStar: vi.fn(),
 }));
 
 vi.mock("../hooks/useDestinationTracker", () => ({
   useDestinationTracker: () => tracker,
 }));
 
-function renderPage() {
+function renderPage(path = "/destinations") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       <DestinationTrackerPage />
     </MemoryRouter>,
   );
@@ -50,6 +56,10 @@ describe("DestinationTrackerPage", () => {
     tracker.destinations = [];
     tracker.loading = false;
     tracker.error = "";
+    tracker.starredDestinationIds = new Set();
+    tracker.starsLoading = false;
+    tracker.starsError = "";
+    tracker.pendingStarIds = new Set();
     vi.clearAllMocks();
   });
 
@@ -170,5 +180,76 @@ describe("DestinationTrackerPage", () => {
     renderPage();
 
     expect(screen.getByRole("alert").textContent).toContain("Run the countries and destinations migration");
+  });
+
+  it("toggles a destination star from its card", async () => {
+    const user = userEvent.setup();
+    tracker.destinations = [{
+      id: "destination-1",
+      countryId: "country-jp",
+      countryName: "Japan",
+      name: "Kyoto",
+      status: "visited",
+      visitDate: null,
+      rating: null,
+      notes: null,
+      photoUrl: null,
+      createdAt: "2025-03-01T12:00:00Z",
+    }];
+    renderPage();
+
+    const starButton = screen.getByRole("button", { name: "Star Kyoto" });
+    expect(starButton.getAttribute("aria-pressed")).toBe("false");
+    await user.click(starButton);
+
+    expect(tracker.toggleStar).toHaveBeenCalledWith("destination-1");
+  });
+
+  it("shows only starred destinations in the starred view", () => {
+    tracker.destinations = [
+      {
+        id: "destination-1",
+        countryId: "country-jp",
+        countryName: "Japan",
+        name: "Kyoto",
+        status: "visited",
+        visitDate: null,
+        rating: null,
+        notes: null,
+        photoUrl: null,
+        createdAt: "2025-03-01T12:00:00Z",
+      },
+      {
+        id: "destination-2",
+        countryId: "country-jp",
+        countryName: "Japan",
+        name: "Osaka",
+        status: "wishlist",
+        visitDate: null,
+        rating: null,
+        notes: null,
+        photoUrl: null,
+        createdAt: "2025-03-02T12:00:00Z",
+      },
+    ];
+    tracker.starredDestinationIds = new Set(["destination-1"]);
+    renderPage("/starred");
+
+    expect(screen.getByRole("heading", { name: "Kyoto", level: 3 })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Osaka", level: 3 })).toBeNull();
+  });
+
+  it("shows a dedicated empty state when there are no starred places", () => {
+    renderPage("/starred");
+    expect(screen.getByRole("heading", { name: "Nothing starred just yet." })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /browse my destinations/i })).toBeTruthy();
+  });
+
+  it("does not mistake a stars migration error for an empty starred list", () => {
+    tracker.starsError = "Starred destinations are not set up yet. Run the stars migration in Supabase.";
+    renderPage("/starred");
+
+    expect(screen.getByRole("alert").textContent).toContain("Run the stars migration");
+    expect(screen.queryByRole("heading", { name: "Nothing starred just yet." })).toBeNull();
   });
 });

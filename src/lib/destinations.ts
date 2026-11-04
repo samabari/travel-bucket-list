@@ -82,6 +82,29 @@ function throwFriendly(error: unknown): never {
   throw new Error(getDestinationErrorMessage(error));
 }
 
+export function getStarErrorMessage(error: unknown): string {
+  const record = error && typeof error === "object"
+    ? error as { code?: unknown; message?: unknown }
+    : {};
+  const code = typeof record.code === "string" ? record.code : "";
+  const message = typeof record.message === "string" ? record.message.toLowerCase() : "";
+
+  if (code === "42P01" || code === "PGRST205" || message.includes("schema cache")) {
+    return "Starred destinations are not set up yet. Run the stars migration in Supabase.";
+  }
+  if (code === "42501" || message.includes("row-level security")) {
+    return "Supabase could not update your stars. Check that you are signed in and the stars policies are installed.";
+  }
+  if (code === "23503") {
+    return "That destination is no longer available. Refresh your list and try again.";
+  }
+  return "We couldn't update your starred destinations. Please try again.";
+}
+
+function throwStarError(error: unknown): never {
+  throw new Error(getStarErrorMessage(error));
+}
+
 export async function listCountries(): Promise<Country[]> {
   const { data, error } = await getClient()
     .from("countries")
@@ -120,6 +143,31 @@ export async function listDestinations(): Promise<Destination[]> {
     photoUrl: row.photo_url,
     createdAt: row.created_at,
   }));
+}
+
+export async function listStarredDestinationIds(): Promise<string[]> {
+  const { data, error } = await getClient()
+    .from("stars")
+    .select("destination_id");
+  if (error) throwStarError(error);
+  return (data ?? []).map((row) => row.destination_id as string);
+}
+
+export async function addStar(destinationId: string): Promise<void> {
+  const { error } = await getClient()
+    .from("stars")
+    .insert({ destination_id: destinationId });
+  // The database unique constraint makes an already-existing star idempotent.
+  if (error && error.code === "23505") return;
+  if (error) throwStarError(error);
+}
+
+export async function removeStar(destinationId: string): Promise<void> {
+  const { error } = await getClient()
+    .from("stars")
+    .delete()
+    .eq("destination_id", destinationId);
+  if (error) throwStarError(error);
 }
 
 async function resolveCountry(choice: CountryChoice): Promise<string> {
