@@ -532,6 +532,10 @@
 .destination-field input:focus,
 .destination-field select:focus,
 .destination-field textarea:focus { border-color: #7898a2; outline: none; box-shadow: 0 0 0 3px rgba(113, 143, 156, .12); }
+.destination-field input[aria-invalid="true"],
+.destination-field select[aria-invalid="true"],
+.destination-field textarea[aria-invalid="true"] { border-color: #a65748; }
+.destination-field-error { margin: 0; color: #a65748; font-size: 11px; line-height: 1.45; }
 .destination-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .destination-fieldset legend { margin-bottom: 8px; }
 .destination-status-options { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }

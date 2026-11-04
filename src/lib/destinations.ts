@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
-import { resolveDestinationPhotoUrl } from "./destination-photos";
+import { isStoredDestinationPhoto, resolveDestinationPhotoUrl } from "./destination-photos";
+import { validateDestinationDraft } from "./destination-validation";
 
 export type DestinationStatus = "visited" | "wishlist";
 
@@ -213,7 +214,22 @@ function toDatabaseValues(input: DestinationInput, countryId: string) {
   };
 }
 
+function assertValidDestinationInput(input: DestinationInput): void {
+  const errors = validateDestinationDraft({
+    name: input.name,
+    countryChoice: input.country.kind === "new" ? "new" : input.country.id,
+    newCountry: input.country.kind === "new" ? input.country.name : "",
+    visitDate: input.visitDate,
+    rating: input.rating,
+    photoUrl: input.photoUrl,
+    photoUrlIsStored: isStoredDestinationPhoto(input.photoUrl),
+  });
+  const firstError = Object.values(errors)[0];
+  if (firstError) throw new Error(firstError);
+}
+
 export async function createDestination(input: DestinationInput): Promise<void> {
+  assertValidDestinationInput(input);
   const countryId = await resolveCountry(input.country);
   const { error } = await getClient()
     .from("destinations")
@@ -222,6 +238,7 @@ export async function createDestination(input: DestinationInput): Promise<void> 
 }
 
 export async function updateDestination(id: string, input: DestinationInput): Promise<void> {
+  assertValidDestinationInput(input);
   const countryId = await resolveCountry(input.country);
   const { error } = await getClient()
     .from("destinations")
