@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import DestinationTrackerPage from "./DestinationTrackerPage";
+import type { Destination } from "../lib/destinations";
 
 const tracker = vi.hoisted(() => ({
   countries: [] as { id: string; name: string }[],
@@ -46,6 +47,28 @@ function renderPage(path = "/destinations") {
   );
 }
 
+function makeDestination(
+  id: string,
+  name: string,
+  countryId: string,
+  countryName: string,
+  status: "visited" | "wishlist",
+  createdAt: string,
+): Destination {
+  return {
+    id,
+    name,
+    countryId,
+    countryName,
+    status,
+    visitDate: null,
+    rating: null,
+    notes: null,
+    photoUrl: null,
+    createdAt,
+  };
+}
+
 describe("DestinationTrackerPage", () => {
   afterEach(() => {
     cleanup();
@@ -69,7 +92,7 @@ describe("DestinationTrackerPage", () => {
 
     await user.click(screen.getByRole("button", { name: /add a place/i }));
     await user.type(screen.getByLabelText(/place name/i), "Kyoto");
-    await user.selectOptions(screen.getByLabelText(/country/i), "new");
+    await user.selectOptions(within(screen.getByRole("dialog")).getByLabelText(/country/i), "new");
     await user.type(screen.getByLabelText(/new country name/i), "Japan");
     await user.click(screen.getByRole("radio", { name: /been there/i }));
     await user.type(screen.getByLabelText(/when did you go/i), "2024-04-12");
@@ -251,5 +274,96 @@ describe("DestinationTrackerPage", () => {
 
     expect(screen.getByRole("alert").textContent).toContain("Run the stars migration");
     expect(screen.queryByRole("heading", { name: "Nothing starred just yet." })).toBeNull();
+  });
+
+  it("searches destination names through the My Destinations controls", async () => {
+    const user = userEvent.setup();
+    tracker.destinations = [
+      makeDestination("d-1", "Kyoto", "country-jp", "Japan", "visited", "2025-03-01T12:00:00Z"),
+      makeDestination("d-2", "Lisbon", "country-pt", "Portugal", "wishlist", "2025-03-02T12:00:00Z"),
+    ];
+    tracker.countries = [
+      { id: "country-jp", name: "Japan" },
+      { id: "country-pt", name: "Portugal" },
+    ];
+    renderPage();
+
+    await user.type(screen.getByRole("searchbox", { name: "Search destination names" }), "lis");
+
+    expect(screen.getByRole("heading", { name: "Lisbon", level: 3 })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Kyoto", level: 3 })).toBeNull();
+  });
+
+  it("combines country, status, and name search controls", async () => {
+    const user = userEvent.setup();
+    tracker.destinations = [
+      makeDestination("d-1", "Kyoto", "country-jp", "Japan", "visited", "2025-03-01T12:00:00Z"),
+      makeDestination("d-2", "Tokyo", "country-jp", "Japan", "wishlist", "2025-03-02T12:00:00Z"),
+      makeDestination("d-3", "Lisbon", "country-pt", "Portugal", "wishlist", "2025-03-03T12:00:00Z"),
+    ];
+    tracker.countries = [
+      { id: "country-jp", name: "Japan" },
+      { id: "country-pt", name: "Portugal" },
+    ];
+    renderPage();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Filter by country" }), "country-jp");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Filter by visit status" }), "wishlist");
+    await user.type(screen.getByRole("searchbox", { name: "Search destination names" }), "tok");
+
+    expect(screen.getByRole("heading", { name: "Tokyo", level: 3 })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Kyoto", level: 3 })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Lisbon", level: 3 })).toBeNull();
+  });
+
+  it("sorts the displayed destinations using the selected sort mode", async () => {
+    const user = userEvent.setup();
+    tracker.destinations = [
+      makeDestination("d-1", "Tokyo", "country-jp", "Japan", "visited", "2025-03-03T12:00:00Z"),
+      makeDestination("d-2", "Kyoto", "country-jp", "Japan", "visited", "2025-03-01T12:00:00Z"),
+      makeDestination("d-3", "Osaka", "country-jp", "Japan", "visited", "2025-03-02T12:00:00Z"),
+    ];
+    renderPage();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Sort destinations" }), "name-asc");
+
+    const visibleNames = Array.from(document.querySelectorAll(".destination-grid h3"))
+      .map((heading) => heading.textContent);
+    expect(visibleNames).toEqual(["Kyoto", "Osaka", "Tokyo"]);
+  });
+
+  it("clears all controls back to the default destination list", async () => {
+    const user = userEvent.setup();
+    tracker.destinations = [
+      makeDestination("d-1", "Kyoto", "country-jp", "Japan", "visited", "2025-03-01T12:00:00Z"),
+      makeDestination("d-2", "Tokyo", "country-jp", "Japan", "wishlist", "2025-03-02T12:00:00Z"),
+    ];
+    tracker.countries = [{ id: "country-jp", name: "Japan" }];
+    renderPage();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Filter by country" }), "country-jp");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Filter by visit status" }), "visited");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Sort destinations" }), "name-asc");
+    await user.type(screen.getByRole("searchbox", { name: "Search destination names" }), "kyo");
+    await user.click(screen.getByRole("button", { name: /clear filters/i }));
+
+    expect((screen.getByRole("searchbox", { name: "Search destination names" }) as HTMLInputElement).value).toBe("");
+    expect((screen.getByRole("combobox", { name: "Filter by country" }) as HTMLSelectElement).value).toBe("");
+    expect((screen.getByRole("combobox", { name: "Filter by visit status" }) as HTMLSelectElement).value).toBe("all");
+    expect((screen.getByRole("combobox", { name: "Sort destinations" }) as HTMLSelectElement).value).toBe("newest");
+    expect(screen.getByRole("heading", { name: "Tokyo", level: 3 })).toBeTruthy();
+  });
+
+  it("shows a helpful message when no destinations match", async () => {
+    const user = userEvent.setup();
+    tracker.destinations = [
+      makeDestination("d-1", "Kyoto", "country-jp", "Japan", "visited", "2025-03-01T12:00:00Z"),
+    ];
+    renderPage();
+
+    await user.type(screen.getByRole("searchbox", { name: "Search destination names" }), "Reykjavik");
+
+    expect(screen.getByRole("heading", { name: "No places found this time." })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Kyoto", level: 3 })).toBeNull();
   });
 });

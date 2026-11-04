@@ -8,6 +8,8 @@ import {
   MapPin,
   Pencil,
   Plus,
+  RotateCcw,
+  Search,
   Star,
   Trash2,
   X,
@@ -15,6 +17,7 @@ import {
 import { Link, useLocation } from "react-router-dom";
 import { useDestinationTracker } from "../hooks/useDestinationTracker";
 import type { Country, Destination, DestinationInput, DestinationStatus } from "../lib/destinations";
+import { filterAndSortDestinations, type DestinationSort, type DestinationStatusFilter } from "../lib/destination-filters";
 import "./destination-tracker.css";
 
 type DestinationForm = {
@@ -37,6 +40,13 @@ const emptyForm: DestinationForm = {
   rating: "",
   notes: "",
   photoUrl: "",
+};
+
+const defaultDestinationFilters = {
+  search: "",
+  countryId: "",
+  status: "all" as DestinationStatusFilter,
+  sort: "newest" as DestinationSort,
 };
 
 function asErrorMessage(cause: unknown, fallback: string) {
@@ -327,6 +337,7 @@ export default function DestinationTrackerPage() {
   const [deleteTarget, setDeleteTarget] = useState<Destination | null>(null);
   const [mutationBusy, setMutationBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [filters, setFilters] = useState(defaultDestinationFilters);
   const errorFocusRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -399,9 +410,14 @@ export default function DestinationTrackerPage() {
 
   const visibleDestinations = starredOnly
     ? destinations.filter((destination) => starredDestinationIds.has(destination.id))
-    : destinations;
+    : filterAndSortDestinations(destinations, filters);
   const visited = visibleDestinations.filter((destination) => destination.status === "visited");
   const wishlist = visibleDestinations.filter((destination) => destination.status === "wishlist");
+  const filtersAreActive = Boolean(filters.search.trim() || filters.countryId || filters.status !== "all" || filters.sort !== "newest");
+
+  function clearFilters() {
+    setFilters({ ...defaultDestinationFilters });
+  }
 
   function renderSection(title: string, eyebrow: string, entries: Destination[], emptyTitle: string, emptyCopy: string, isWishlist: boolean) {
     return (
@@ -468,6 +484,73 @@ export default function DestinationTrackerPage() {
         </header>
         <div className="destination-rule"><ImageIcon size={15} /><span>Collect moments, not miles</span></div>
 
+        {!starredOnly && (
+          <section className="destination-filters" aria-label="Find a destination">
+            <div className="destination-filters-heading">
+              <div>
+                <span className="destination-filter-eyebrow">YOUR JOURNAL</span>
+                <h2>Find a place</h2>
+              </div>
+              <span className="destination-result-count">
+                {visibleDestinations.length} {visibleDestinations.length === 1 ? "place" : "places"}
+              </span>
+            </div>
+            <div className="destination-filter-controls">
+              <label className="destination-search-field">
+                <Search size={16} aria-hidden="true" />
+                <span className="sr-only">Search destination names</span>
+                <input
+                  type="search"
+                  value={filters.search}
+                  placeholder="Search places"
+                  onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+                />
+              </label>
+              <label className="destination-filter-select">
+                <span>Country</span>
+                <select
+                  aria-label="Filter by country"
+                  value={filters.countryId}
+                  onChange={(event) => setFilters((current) => ({ ...current, countryId: event.target.value }))}
+                >
+                  <option value="">Everywhere</option>
+                  {countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}
+                </select>
+              </label>
+              <label className="destination-filter-select">
+                <span>Status</span>
+                <select
+                  aria-label="Filter by visit status"
+                  value={filters.status}
+                  onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as DestinationStatusFilter }))}
+                >
+                  <option value="all">All</option>
+                  <option value="visited">Visited</option>
+                  <option value="wishlist">Wishlist</option>
+                </select>
+              </label>
+              <label className="destination-filter-select destination-sort-select">
+                <span>Sort by</span>
+                <select
+                  aria-label="Sort destinations"
+                  value={filters.sort}
+                  onChange={(event) => setFilters((current) => ({ ...current, sort: event.target.value as DestinationSort }))}
+                >
+                  <option value="newest">Most recently added</option>
+                  <option value="oldest">Oldest added</option>
+                  <option value="name-asc">Name (A–Z)</option>
+                  <option value="name-desc">Name (Z–A)</option>
+                </select>
+              </label>
+              {filtersAreActive && (
+                <button className="destination-clear-filters" type="button" onClick={clearFilters}>
+                  <RotateCcw size={13} /> Clear Filters
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
         {(error || actionError) && (
           <div className="destination-page-error" role="alert" tabIndex={-1} ref={errorFocusRef}>
             <AlertCircle size={17} />
@@ -502,8 +585,21 @@ export default function DestinationTrackerPage() {
           </section>
         ) : (
           <>
-            {renderSection("Been there", starredOnly ? "STARRED MEMORIES" : "PLACES THAT STAY", visited, starredOnly ? "No visited places starred." : "The first page is waiting.", starredOnly ? "Star a visited place and it will find a home here." : "When somewhere leaves a mark, save it here so you can find your way back.", false)}
-            {renderSection("Want to visit", starredOnly ? "STARRED POSSIBILITIES" : "PLACES TO COME", wishlist, starredOnly ? "No future trips starred." : "Somewhere on your mind?", starredOnly ? "Keep a dream destination close by starring it from your list." : "Save the places you’re dreaming about, and keep them close until the day you go.", !starredOnly)}
+            {!starredOnly && filtersAreActive && visibleDestinations.length === 0 ? (
+              <section className="destination-section" aria-live="polite">
+                <div className="destination-empty destination-filter-empty">
+                  <span className="destination-empty-mark"><Search size={19} /></span>
+                  <h3>No places found this time.</h3>
+                  <p>Try another name or widen your filters. Your saved places are still right where you left them.</p>
+                  <button type="button" onClick={clearFilters}>Clear Filters</button>
+                </div>
+              </section>
+            ) : (
+              <>
+                {renderSection("Been there", starredOnly ? "STARRED MEMORIES" : "PLACES THAT STAY", visited, starredOnly ? "No visited places starred." : "The first page is waiting.", starredOnly ? "Star a visited place and it will find a home here." : "When somewhere leaves a mark, save it here so you can find your way back.", false)}
+                {renderSection("Want to visit", starredOnly ? "STARRED POSSIBILITIES" : "PLACES TO COME", wishlist, starredOnly ? "No future trips starred." : "Somewhere on your mind?", starredOnly ? "Keep a dream destination close by starring it from your list." : "Save the places you’re dreaming about, and keep them close until the day you go.", !starredOnly)}
+              </>
+            )}
           </>
         )}
         <footer className="destination-footer">

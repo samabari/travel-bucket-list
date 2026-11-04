@@ -149,6 +149,121 @@
 .destination-rule::after { content: ""; height: 1px; flex: 1; background: var(--dt-line); }
 .destination-rule svg { color: var(--dt-blue); }
 
+.destination-filters {
+  margin: 0 0 42px;
+  padding: 20px 22px 21px;
+  background: rgba(235, 238, 229, .65);
+  border: 1px solid #dce1d7;
+}
+.destination-filters-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.destination-filter-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: #84918b;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: .16em;
+}
+.destination-filters-heading h2 {
+  margin: 0;
+  color: #4a5e5c;
+  font: 500 21px/1.15 "Playfair Display", Georgia, serif;
+}
+.destination-result-count {
+  padding-bottom: 2px;
+  color: #85918b;
+  font-size: 10px;
+  letter-spacing: .06em;
+}
+.destination-filter-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) repeat(3, minmax(125px, 1fr)) auto;
+  align-items: end;
+  gap: 10px;
+}
+.destination-search-field {
+  min-width: 0;
+  min-height: 43px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  color: #82918b;
+  background: #fbfaf6;
+  border: 1px solid #d8ddd5;
+}
+.destination-search-field:focus-within { border-color: #7898a2; box-shadow: 0 0 0 3px rgba(113, 143, 156, .1); }
+.destination-search-field svg { flex: none; }
+.destination-search-field input {
+  width: 100%;
+  min-width: 0;
+  height: 41px;
+  padding: 0;
+  color: #34464c;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 11px;
+}
+.destination-search-field input::placeholder { color: #a0aaa3; }
+.destination-search-field input::-webkit-search-cancel-button { cursor: pointer; }
+.destination-filter-select { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.destination-filter-select > span {
+  color: #7e8b85;
+  font-size: 8px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.destination-filter-select select {
+  width: 100%;
+  min-width: 0;
+  height: 43px;
+  padding: 0 26px 0 10px;
+  color: #526762;
+  background: #fbfaf6;
+  border: 1px solid #d8ddd5;
+  border-radius: 0;
+  font-size: 10px;
+  cursor: pointer;
+}
+.destination-filter-select select:focus { border-color: #7898a2; outline: none; box-shadow: 0 0 0 3px rgba(113, 143, 156, .1); }
+.destination-clear-filters {
+  min-height: 43px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: #657b78;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 10px;
+  transition: background .18s ease, color .18s ease;
+}
+.destination-clear-filters:hover { color: #3e626a; background: #e4ebe5; }
+.destination-filter-empty { margin-top: 3px; padding-block: 46px 42px; }
+.destination-filter-empty .destination-empty-mark { color: #718d91; background: #eef1e9; }
+.destination-filter-empty button { margin-top: 17px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .destination-section { margin-bottom: 54px; }
 .destination-section-head {
   display: flex;
@@ -477,6 +592,9 @@
   .destination-page-nav a { flex: 1; text-align: center; }
   .destination-intro { grid-template-columns: 1fr; align-items: start; gap: 22px; }
   .destination-add-button { justify-self: start; }
+  .destination-filter-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .destination-search-field { grid-column: 1 / -1; }
+  .destination-clear-filters { justify-self: start; }
   .destination-grid, .destination-skeleton-grid { grid-template-columns: 1fr; }
   .destination-card { min-height: 222px; }
   .destination-section { margin-bottom: 42px; }
@@ -492,6 +610,13 @@
   .destination-intro { padding: 42px 0 38px; }
   .destination-intro h1 { font-size: clamp(42px, 13vw, 60px); }
   .destination-intro p { font-size: 13px; }
+  .destination-filters { margin-bottom: 34px; padding: 17px 14px 15px; }
+  .destination-filters-heading { margin-bottom: 13px; }
+  .destination-filters-heading h2 { font-size: 19px; }
+  .destination-filter-controls { grid-template-columns: 1fr; gap: 10px; }
+  .destination-search-field { grid-column: auto; }
+  .destination-filter-select select { height: 44px; font-size: 11px; }
+  .destination-clear-filters { min-height: 38px; padding-inline: 2px; }
   .destination-section-head span { font-size: 8px; }
   .destination-card { grid-template-columns: 112px minmax(0, 1fr); min-height: 218px; }
   .destination-card-copy { padding: 16px 13px 13px; }
